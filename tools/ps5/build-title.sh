@@ -33,10 +33,17 @@ ninja -C "$B" sf3ps5
 link=(--stub-dir $S/target/lib --module-sdk 0x02000009 --companion-sdk 0x08050001)
 $T link --in $B/sf3ps5 --out $W/eboot.elf "${link[@]}" --stub $W/stubs/libSceAgc.so --stub $W/stubs/libSceAgcDriver.so --file-name eboot.elf >/dev/null
 $S/bin/prospero-clang -O2 -fPIC -fno-plt -c $P/companion/libc_companion.c -o $W/obj/companion.o
-$S/bin/prospero-lld --shared -soname libc.prx -T $P/ps5-title.ld --version-script $P/title-exports.map -o $W/companion.so $W/obj/companion.o -L$S/target/lib -lkernel
+X="$R/tools/ps5/libc-exports.tsv"; python3 "$R/tools/ps5/companion-exports.py" gen $X $W/obj/exports.S
+$S/bin/prospero-clang -c $W/obj/exports.S -o $W/obj/exports.o
+# the companion exports four thread-local objects: same layout plus a TLS segment
+sed -e "s/^    dynamic PT_DYNAMIC FLAGS(6);/&\n    tls PT_TLS FLAGS(4);/" -e "s/^    .bss : {/    .tbss : { *(.tbss .tbss.*) } :data :tls\n&/" $P/ps5-title.ld >$W/obj/companion.ld
+$S/bin/prospero-lld --shared -soname libc.prx -T $W/obj/companion.ld --version-script $P/title-exports.map -o $W/companion.so $W/obj/companion.o $W/obj/exports.o -L$S/target/lib -lkernel -lSceLibcInternal -lSceSysmodule
 $T link --in $W/companion.so --out $W/companion.elf "${link[@]}" --file-name libc.prx >/dev/null
 # the converter writes an application (0xFE10); rtld only loads a module (0xFE18 + module param)
 python3 "$R/tools/ps5/prx-fixup.py" $W/companion.elf $W/companion.elf
+# the converter cannot publish exports; add the libc/libc_setjmp table and check it
+python3 "$R/tools/ps5/companion-exports.py" publish $X $W/companion.so $W/companion.elf $W/companion.elf
+python3 "$R/tools/ps5/companion-exports.py" check $X $W/companion.elf
 A=$W/$TITLE_ID; rm -rf "$A"; mkdir -p $A/sce_sys $A/sce_module $A/profiles
 python3 "$R/tools/ps5/make-fself.py" $W/eboot.elf $A/eboot.bin
 python3 "$R/tools/ps5/make-fself.py" --module $W/companion.elf $A/sce_module/libc.prx

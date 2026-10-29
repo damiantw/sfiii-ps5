@@ -106,8 +106,17 @@ Both `eboot.bin` and `sce_module/libc.prx` are wrapped as fake SELFs by `tools/p
 module param, SONAME, module info and its export library). The build output is byte-for-byte
 reproducible.
 
+The loader's libSceLibcInternal looks up the companion's exports, so `tools/ps5/companion-exports.py`
+gives it the 2566 NIDs listed in `tools/ps5/libc-exports.tsv` (libraries `libc` and `libc_setjmp`;
+names, sizes and kinds only). The converter cannot publish exports, so the tool adds them to the
+converted module and the build fails unless the list matches exactly. setjmp/longjmp, atexit,
+`__cxa_finalize`, `_malloc_init` and `Need_sceLibc` are real; every other function traps with its
+table row in `eax`, so a crash names the export that was called.
+
 Status: it builds and links. On the console, earlier builds stopped at `libc.prx`
-(`PRX_SCE_MODULE_LOAD_ERROR`); this build has not run there yet.
+(`PRX_SCE_MODULE_LOAD_ERROR` inside libSceLibcInternal, with a companion that exported nothing).
+The build with the export table has not run yet: its first launch was refused because the
+console still held the previous crashed instance (`checkExistingApp` 0x8094000c).
 
 ## Console test title (swapchain)
 
