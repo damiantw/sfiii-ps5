@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.20)
-project(sfiii-ps5 CXX)
+project(sfiii-ps5 C CXX)
 set(CMAKE_CXX_STANDARD 17)
 # Dev tools: the network debug server is compiled only when ON. Release/store builds keep it OFF;
 # the release check (tools/check-release.sh) refuses an ELF with devtools_ symbols.
@@ -42,4 +42,46 @@ if(SF3_PS5_RUNTIME_DIR)
   if(SF3_PS5_DEVTOOLS)
     target_compile_definitions(sf3ps5_runtime_agent PRIVATE SF3_PS5_DEVTOOLS=1)
   endif()
+endif()
+
+# Disc layer and on-console translation patcher (src/disc, src/patch). CHD comes from libchdr
+# (BSD-3-Clause) with its bundled LZMA SDK (public domain), miniz (MIT) and zstd (BSD; dual
+# BSD/GPLv2, taken under BSD) and dr_flac (public domain / MIT-0). See docs/third-party.md.
+set(CHDR_WANT_TESTS OFF CACHE BOOL "" FORCE)
+set(BUILD_SHARED_LIBS OFF CACHE BOOL "" FORCE)
+set(WITH_SYSTEM_ZLIB OFF CACHE BOOL "" FORCE)
+set(WITH_SYSTEM_ZSTD OFF CACHE BOOL "" FORCE)
+add_subdirectory(external/libchdr EXCLUDE_FROM_ALL)
+add_library(sf3ps5_disc STATIC
+  src/disc/sha.cpp src/disc/cdimage.cpp src/disc/identify.cpp src/disc/scan.cpp
+  src/patch/dotnet.cpp src/patch/ipbin.cpp)
+target_include_directories(sf3ps5_disc PUBLIC src)
+target_link_libraries(sf3ps5_disc PUBLIC chdr-static)
+# The translation patcher (port of sfiii-native tools/sf3patch); zip reading uses libchdr's miniz (MIT).
+add_library(sf3ps5_patch STATIC
+  src/patch/netjson.cpp src/patch/dfr.cpp src/patch/vfs.cpp src/patch/package.cpp src/patch/build.cpp src/patch/fetch.cpp)
+target_link_libraries(sf3ps5_patch PUBLIC sf3ps5_disc miniz)
+target_include_directories(sf3ps5_patch PRIVATE external/libchdr/deps/miniz-3.1.2)
+# Dear ImGui (MIT), pinned submodule; the platform layer adds its backends.
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
+set(IMGUI_SOURCES ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp)
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC ${IMGUI_DIR})
+# The menu: launcher, translation/download pages, in-game overlay.
+find_package(Threads REQUIRED)
+add_library(sf3ps5_menu STATIC src/menu/menu.cpp src/menu/jobs.cpp src/menu/settings.cpp)
+target_link_libraries(sf3ps5_menu PUBLIC sf3ps5_patch imgui Threads::Threads)
+if(NOT CMAKE_CROSSCOMPILING)
+  # Headless menu test: ImGui with the test-engine item hooks so the test can find and click widgets.
+  add_library(imgui_hooked STATIC ${IMGUI_SOURCES} ${IMGUI_DIR}/backends/imgui_impl_null.cpp)
+  target_include_directories(imgui_hooked PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+  target_compile_definitions(imgui_hooked PUBLIC IMGUI_ENABLE_TEST_ENGINE)
+  add_executable(menu_smoke tests/menu_smoke.cpp src/menu/menu.cpp src/menu/jobs.cpp src/menu/settings.cpp)
+  target_link_libraries(menu_smoke sf3ps5_patch imgui_hooked Threads::Threads)
+  add_executable(sf3disc src/cli/sf3disc.cpp)
+  target_link_libraries(sf3disc sf3ps5_disc)
+  add_executable(sf3patch src/cli/sf3patch.cpp)
+  target_link_libraries(sf3patch sf3ps5_patch)
+  add_executable(patch_quirks tests/patch_quirks.cpp)
+  target_link_libraries(patch_quirks sf3ps5_patch)
 endif()
