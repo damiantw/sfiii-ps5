@@ -101,6 +101,7 @@ PC tools (the same code the console runs):
 ```sh
 build/sf3disc scan /path/to/discs                 # which disc fills which slot
 build/sf3disc identify disc.cue|disc.chd
+build/sf3disc probe disc.cue [EXTRACT_DIR [PROFILES_DIR]]  # content manifest + ID (as sfiii-native tools/probe.py), root .BIN files, matching profile
 build/sf3patch fetch --dest translation           # opt-in download (curl): SF3Patch.exe + V25+ add-ons
 build/sf3patch list  disc.cue --package translation/SF3Patch.exe --addons translation/V25+
 build/sf3patch patch disc.chd --package translation/SF3Patch.exe --addons translation/V25+ -o out.bin

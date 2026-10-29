@@ -53,7 +53,7 @@ set(WITH_SYSTEM_ZLIB OFF CACHE BOOL "" FORCE)
 set(WITH_SYSTEM_ZSTD OFF CACHE BOOL "" FORCE)
 add_subdirectory(external/libchdr EXCLUDE_FROM_ALL)
 add_library(sf3ps5_disc STATIC
-  src/disc/sha.cpp src/disc/cdimage.cpp src/disc/identify.cpp src/disc/scan.cpp
+  src/disc/sha.cpp src/disc/cdimage.cpp src/disc/identify.cpp src/disc/scan.cpp src/disc/manifest.cpp
   src/patch/dotnet.cpp src/patch/ipbin.cpp)
 target_include_directories(sf3ps5_disc PUBLIC src)
 target_link_libraries(sf3ps5_disc PUBLIC chdr-static)
