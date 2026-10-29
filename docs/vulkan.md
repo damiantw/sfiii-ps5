@@ -30,3 +30,6 @@ So the shader itself is unchanged.
    interface (`render(Frame, scale)` returning an image handle), proposed as a fork PR.
 3. Parity: render the same captured `Frame`s through SDL_GPU (desktop) and VkScene (lavapipe), then compare.
    Captures stay local; only invented frames go in the repo.
+
+## Present step
+`VkScene::present_to()` clears the target image, for example a 4K swapchain image, to black, then blits the last pass into the `place()` rectangle (nearest for square pixels, or linear). It takes the image's current and final layouts plus optional acquire/present semaphores, so the PS5 swapchain loop is just acquire → `present_to(..., PRESENT_SRC_KHR, ...)` → `vkQueuePresentKHR`. `present_offscreen()` does the same into an internal image and reads it back. The lavapipe test uses it to check every texel at 4K and the black pillarbox.

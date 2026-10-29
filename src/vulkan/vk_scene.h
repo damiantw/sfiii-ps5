@@ -7,10 +7,11 @@
 //   set 2: binding 0 combined image sampler (picture), bindings 1,2 storage buffers (scene, textures)
 //   set 3: binding 0 uniform buffer (Pass)
 //   inputs: location 0 color (vec4), location 1 uv (vec2), as SDL's renderer vertex shader feeds them.
-// So the desktop's compiled shader is used unchanged. The present path (swapchain, 4K,
-// place() in present.h) comes in the next step. This step is headless and tested on lavapipe.
+// So the desktop's compiled shader is used unchanged. present_to() is the present step: a clear plus a scaled blit into a 4K image, for example a
+// swapchain image. Everything is tested headless on lavapipe.
 #pragma once
 #include <vulkan/vulkan.h>
+#include "present.h"
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -26,6 +27,18 @@ public:
     // (the effects pass) or nullptr for a white texel (the geometry pass, like gpu-renderer.cpp).
     bool draw(int w, int h, uint32_t aa_pass, bool picture_is_last, std::string& why);
     bool read_rgba(std::vector<uint8_t>& out, std::string& why);   // the last pass, RGBA8, top row first
+    // Present step: clears `dst` (w x h, e.g. a 4K swapchain image) to black and scales the last pass
+    // into `r` (from place() in present.h), nearest or linear. `old_layout` is dst's layout now (UNDEFINED
+    // for a fresh swapchain image), and `final_layout` is the layout to leave it in (PRESENT_SRC_KHR for a
+    // swapchain). dst needs TRANSFER_DST usage. `wait`/`signal` are optional semaphores (acquire/present).
+    bool present_to(VkImage dst, int w, int h, VkImageLayout old_layout, VkImageLayout final_layout, Rect r,
+                    bool nearest, std::string& why, VkSemaphore wait = VK_NULL_HANDLE, VkSemaphore signal = VK_NULL_HANDLE);
+    // Test and screenshot helper: present_to() into an internal w x h image, then read it back as RGBA8.
+    bool present_offscreen(int w, int h, Rect r, bool nearest, std::vector<uint8_t>& out, std::string& why);
+    VkDevice device() const { return dev_; }
+    VkPhysicalDevice physical_device() const { return phys_; }
+    VkQueue queue() const { return queue_; }
+    uint32_t queue_family() const { return family_; }
     const char* device_name() const { return name_.c_str(); }
     ~VkScene();
 
@@ -56,7 +69,8 @@ private:
     VkDescriptorPool dpool_ = VK_NULL_HANDLE;
     VkDescriptorSet ds2_[2] = {}, ds3_ = VK_NULL_HANDLE;
     VkSampler sampler_ = VK_NULL_HANDLE;
-    Image white_, target_[2];
+    Image white_, target_[2], screen_;
+    Buffer screen_rb_;
     VkFramebuffer fb_[2] = {};
     int cur_ = 0;                                                  // the target written last
     Buffer scene_, textures_, ubo_, readback_;

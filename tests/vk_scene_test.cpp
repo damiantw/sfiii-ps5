@@ -45,6 +45,27 @@ int main(int argc, char** argv) {
     int off = 0;
     for (int i = 0; i < w * h; ++i) { uint32_t v = scene[1 + i] ^ tex[0]; off += px[i * 4] != 255 - (v >> 16 & 255); }
     CHECK(off == 0);
+    // present: 4K, 4:3 integer scale, nearest; the last pass (effects output) lands in the box, black elsewhere
+    {
+        CHECK(s.draw(w, h, 0, false, why));                // back to the geometry output (known pixels)
+        const int W = 3840, H = 2160;
+        Rect pr = place(W, H, w, h, Aspect::Classic4x3);
+        std::vector<uint8_t> sc;
+        CHECK(s.present_offscreen(W, H, pr, true, sc, why));
+        CHECK(sc.size() == size_t(W) * H * 4);
+        auto at = [&](int x, int y) { return &sc[(size_t(y) * W + x) * 4]; };
+        CHECK(at(0, 0)[0] == 0 && at(0, 0)[3] == 255 && at(W - 1, H - 1)[0] == 0);     // pillarbox is black
+        int bad = 0;
+        for (int sy = 0; sy < h; ++sy) for (int sx = 0; sx < w; ++sx) {
+            int x = pr.x + (2 * sx + 1) * pr.w / (2 * w), y = pr.y + (2 * sy + 1) * pr.h / (2 * h);   // texel centres
+            uint32_t v = scene[1 + sy * w + sx] ^ tex[0];
+            const uint8_t* q = at(x, y);
+            bad += q[0] != (v >> 16 & 255) || q[1] != (v >> 8 & 255) || q[2] != (v & 255);
+        }
+        why = std::to_string(bad) + " texels off";
+        CHECK(bad == 0);
+        std::printf("present 4K: box %dx%d at %d,%d ok\n", pr.w, pr.h, pr.x, pr.y);
+    }
     if (argc > 1) {
         std::ifstream f(argv[1], std::ios::binary);
         std::vector<char> b((std::istreambuf_iterator<char>(f)), {});

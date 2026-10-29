@@ -1,4 +1,5 @@
 #include "vk_scene.h"
+#include <algorithm>
 #include <cstring>
 
 namespace sf3ps5 {
@@ -312,12 +313,84 @@ bool VkScene::read_rgba(std::vector<uint8_t>& out, std::string& why) {
     return true;
 }
 
+bool VkScene::present_to(VkImage dst, int w, int h, VkImageLayout old_layout, VkImageLayout final_layout, Rect r,
+                         bool nearest, std::string& why, VkSemaphore wait, VkSemaphore signal) {
+    Image& t = target_[cur_];
+    if (!t.img) return why = "nothing drawn", false;
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    vkResetCommandBuffer(cmd_, 0);
+    vkBeginCommandBuffer(cmd_, &bi);
+    VkImageMemoryBarrier b[2] = {{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER}, {VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER}};
+    for (auto& x : b) x.srcQueueFamilyIndex = x.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, x.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    b[0].image = t.img, b[0].oldLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, b[0].newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+    b[0].srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT, b[0].dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    b[1].image = dst, b[1].oldLayout = old_layout, b[1].newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    b[1].srcAccessMask = 0, b[1].dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 2, b);
+    VkClearColorValue black{};
+    black.float32[3] = 1.0f;
+    VkImageSubresourceRange all{VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    vkCmdClearColorImage(cmd_, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, &black, 1, &all);
+    VkMemoryBarrier mb{VK_STRUCTURE_TYPE_MEMORY_BARRIER};
+    mb.srcAccessMask = mb.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 1, &mb, 0, nullptr, 0, nullptr);
+    if (r.w > 0 && r.h > 0) {
+        VkImageBlit bl{};
+        bl.srcSubresource = bl.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        bl.srcOffsets[1] = {t.w, t.h, 1};
+        bl.dstOffsets[0] = {std::max(r.x, 0), std::max(r.y, 0), 0};
+        bl.dstOffsets[1] = {std::min(r.x + r.w, w), std::min(r.y + r.h, h), 1};
+        vkCmdBlitImage(cmd_, t.img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bl,
+                       nearest ? VK_FILTER_NEAREST : VK_FILTER_LINEAR);
+    }
+    b[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, b[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    b[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT, b[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
+    b[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, b[1].newLayout = final_layout;
+    b[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, b[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 2, b);
+    vkEndCommandBuffer(cmd_);
+    VkPipelineStageFlags ws = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkSubmitInfo sub{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    sub.commandBufferCount = 1, sub.pCommandBuffers = &cmd_;
+    if (wait) sub.waitSemaphoreCount = 1, sub.pWaitSemaphores = &wait, sub.pWaitDstStageMask = &ws;
+    if (signal) sub.signalSemaphoreCount = 1, sub.pSignalSemaphores = &signal;
+    VK(vkQueueSubmit(queue_, 1, &sub, fence_), "submit present");
+    vkWaitForFences(dev_, 1, &fence_, VK_TRUE, UINT64_MAX);
+    vkResetFences(dev_, 1, &fence_);
+    return true;
+}
+
+bool VkScene::present_offscreen(int w, int h, Rect r, bool nearest, std::vector<uint8_t>& out, std::string& why) {
+    if (screen_.w != w || screen_.h != h) {
+        free_image(screen_), free_buffer(screen_rb_);
+        if (!make_image(screen_, w, h, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, why)) return false;
+        if (!make_buffer(screen_rb_, VkDeviceSize(w) * h * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, why)) return false;
+    }
+    if (!present_to(screen_.img, w, h, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, r, nearest, why)) return false;
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    vkResetCommandBuffer(cmd_, 0);
+    vkBeginCommandBuffer(cmd_, &bi);
+    VkBufferImageCopy cp{};
+    cp.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, cp.imageExtent = {uint32_t(w), uint32_t(h), 1};
+    vkCmdCopyImageToBuffer(cmd_, screen_.img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, screen_rb_.buf, 1, &cp);
+    vkEndCommandBuffer(cmd_);
+    VkSubmitInfo sub{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    sub.commandBufferCount = 1, sub.pCommandBuffers = &cmd_;
+    VK(vkQueueSubmit(queue_, 1, &sub, fence_), "submit screen readback");
+    vkWaitForFences(dev_, 1, &fence_, VK_TRUE, UINT64_MAX);
+    vkResetFences(dev_, 1, &fence_);
+    auto* p = static_cast<const uint8_t*>(screen_rb_.map);
+    out.assign(p, p + size_t(w) * h * 4);
+    return true;
+}
+
 VkScene::~VkScene() {
     if (!dev_) { if (inst_) vkDestroyInstance(inst_, nullptr); return; }
     vkDeviceWaitIdle(dev_);
     for (auto& f : fb_) if (f) vkDestroyFramebuffer(dev_, f, nullptr);
     for (auto& t : target_) free_image(t);
-    free_image(white_);
+    free_image(white_), free_image(screen_);
+    free_buffer(screen_rb_);
     free_buffer(scene_), free_buffer(textures_), free_buffer(ubo_), free_buffer(readback_);
     if (pipe_) vkDestroyPipeline(dev_, pipe_, nullptr);
     if (frag_) vkDestroyShaderModule(dev_, frag_, nullptr);
