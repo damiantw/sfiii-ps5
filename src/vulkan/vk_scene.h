@@ -34,7 +34,10 @@ public:
     // One pass: draws the full target with the fragment shader. `picture` is the previous output
     // (the effects pass) or nullptr for a white texel (the geometry pass, like gpu-renderer.cpp).
     bool draw(int w, int h, uint32_t aa_pass, bool picture_is_last, std::string& why);
-    bool read_rgba(std::vector<uint8_t>& out, std::string& why);   // the last pass, RGBA8, top row first
+    bool read_rgba(std::vector<uint8_t>& out, std::string& why);
+    // A picture from the CPU (the runtime's Frame: 0x00RRGGBB, w*h, top row first) becomes what
+    // present_to() shows, until the next draw(). No shader needed.
+    bool upload_picture(const uint32_t* xrgb, int w, int h, std::string& why);   // the last pass, RGBA8, top row first
     // Present step: clears `dst` (w x h, e.g. a 4K swapchain image) to black and scales the last pass
     // into `r` (from place() in present.h), nearest or linear. `old_layout` is dst's layout now (UNDEFINED
     // for a fresh swapchain image), and `final_layout` is the layout to leave it in (PRESENT_SRC_KHR for a
@@ -80,7 +83,9 @@ private:
     VkDescriptorPool dpool_ = VK_NULL_HANDLE;
     VkDescriptorSet ds2_[2] = {}, ds3_ = VK_NULL_HANDLE;
     VkSampler sampler_ = VK_NULL_HANDLE;
-    Image white_, target_[2], screen_;
+    Image white_, target_[2], screen_, picture_;
+    Buffer picture_up_;
+    bool use_picture_ = false;                                     // present the uploaded picture, not a pass
     Buffer screen_rb_;
     VkFramebuffer fb_[2] = {};
     int cur_ = 0;                                                  // the target written last

@@ -112,6 +112,28 @@ if(Vulkan_FOUND)
     target_link_libraries(vk_menu_test sf3ps5_menu_vk sf3ps5_pad_sdl2)
   endif()
 endif()
+# The PS5 host (src/host): the picture and the menu on the screen, pace and speed, the Saturn pad,
+# sound at 48 kHz, relaunching for disc launch/quit. host_runtime.cpp (the runtime's host_* calls
+# and the app's main) only with SF3_PS5_RUNTIME_DIR: here a compile check, linked on the console.
+add_library(sf3ps5_saturn_pad STATIC src/host/saturn_pad.cpp)
+target_include_directories(sf3ps5_saturn_pad PUBLIC src)
+target_link_libraries(sf3ps5_saturn_pad PUBLIC sf3ps5_menu)
+if(Vulkan_FOUND AND SDL2_FOUND)
+  add_library(sf3ps5_host STATIC src/host/platform_host.cpp src/host/audio_sdl2.cpp src/host/relaunch.cpp src/vulkan/display.cpp)
+  target_include_directories(sf3ps5_host PUBLIC src)
+  target_link_libraries(sf3ps5_host PUBLIC sf3ps5_menu_vk sf3ps5_runtime_host sf3ps5_saturn_pad sf3ps5_pad_sdl2 SDL2::SDL2)
+  if(NOT CMAKE_CROSSCOMPILING)
+    add_executable(host_test tests/host_test.cpp)
+    target_link_libraries(host_test sf3ps5_host)
+  endif()
+  if(SF3_PS5_RUNTIME_DIR)
+    add_library(sf3ps5_host_runtime OBJECT src/host/host_runtime.cpp)
+    target_include_directories(sf3ps5_host_runtime PRIVATE src
+      ${SF3_PS5_RUNTIME_DIR}/runtime/include ${SF3_PS5_RUNTIME_DIR}/runtime/include/saturn
+      ${SF3_PS5_RUNTIME_DIR}/runtime/src/machine ${SF3_PS5_RUNTIME_DIR}/runtime/src/video ${SF3_PS5_RUNTIME_DIR}/runtime/src)
+    target_link_libraries(sf3ps5_host_runtime PRIVATE sf3ps5_host)
+  endif()
+endif()
 if(NOT CMAKE_CROSSCOMPILING)
   # Headless menu test: ImGui with the test-engine item hooks so the test can find and click widgets.
   add_library(imgui_hooked STATIC ${IMGUI_SOURCES} ${IMGUI_DIR}/backends/imgui_impl_null.cpp)

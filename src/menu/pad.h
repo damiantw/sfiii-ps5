@@ -27,7 +27,9 @@ struct PadEvents {
 class PadNav {
 public:
     // Feeds ImGui (io may be null) while the menu is visible; returns the menu-level events.
-    PadEvents feed(const PadState& s, bool menu_visible, ImGuiIO* io);
+    // options_toggles: Options opens/closes the menu too (off in game with the menu closed, where
+    // Options is the game's START; the touchpad always toggles).
+    PadEvents feed(const PadState& s, bool menu_visible, ImGuiIO* io, bool options_toggles = true);
 private:
     PadState prev_;
 };
