@@ -18,6 +18,7 @@ int main(int argc, char** argv) {
     h.save_state = [](const std::string&, std::string&) { return true; };
     h.load_state = [](const std::string&, std::string& e) { e = "no such state"; return false; };
     h.save_status = [] { return std::string("done 0"); };
+    h.load_status = [] { return std::string("done 1"); };
     h.info = [] { return std::string("fake PPSA93303"); };
     if (!devtools_start(c, h)) return 1;
     for (;; ++vb) {

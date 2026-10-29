@@ -50,4 +50,4 @@ deterministic as `--agent`: the same presses at the same VBlanks give the same r
     This needs the console and the user's permission.
 
 ## Compile check against the runtime
-`cmake -DSF3_PS5_RUNTIME_DIR=<patched saturn-recomp> [-DSF3_PS5_DEVTOOLS=ON]` builds `runtime_agent.cpp` against the real runtime headers. In release mode the object has no `devtools_` symbols. In dev mode it references `devtools_start/poll`, `state_request_save` and `smpc_press`. Live state load is still pending, because it needs a fork-side `state.cpp` change: restore at a safe point and resume through the dispatcher.
+`cmake -DSF3_PS5_RUNTIME_DIR=<patched saturn-recomp> [-DSF3_PS5_DEVTOOLS=ON]` builds `runtime_agent.cpp` against the real runtime headers. In release mode the object has no `devtools_` symbols. In dev mode it references `devtools_start/poll`, `state_request_save` and `smpc_press`. `load PATH` loads a native state live at the next safe moment (fork PR #105, runtime patch), and `loaded` reports `done 1` (loaded) or `done -1` (no safe moment came within 120 VBlanks).

@@ -140,6 +140,7 @@ bool serve(const std::string& line) {
         else if ((cmd == "save" ? H.save_state : H.load_state)(path, err)) say("ok");
         else say("error " + err);
     } else if (cmd == "saved") say("saved " + H.save_status());
+    else if (cmd == "loaded") say("loaded " + (H.load_status ? H.load_status() : std::string("done 0")));
     else if (cmd == "log") cmd_log(a);
     else if (cmd == "detach" || cmd == "quit") { say("bye"); drop(); return true; }   // quit never ends the game here
     else say("error no command " + cmd);

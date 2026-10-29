@@ -17,6 +17,7 @@ try:
     c.save("/tmp/x.state")
     try: c.load("/nope"); raise SystemExit("load should fail")
     except sf3dev.DevError as e: assert "no such state" in str(e)
+    assert c._ask("loaded") == "loaded done 1"
     assert any("listening" in l for l in c.log(10))
     c.run(); time.sleep(0.05); assert c.ping() > v + 5
     c.close()

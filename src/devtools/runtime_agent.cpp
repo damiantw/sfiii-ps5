@@ -37,12 +37,12 @@ bool hook_save(const std::string& path, std::string& e) {
     if (!std::getenv("SF3_STATE_ID")) return e = "save needs SF3_STATE_ID (the executable/disc identity)", false;
     try { state_request_save(path); return true; } catch (const std::exception& x) { e = x.what(); return false; }
 }
-bool hook_load(const std::string&, std::string& e) {
-    // the runtime loads a native state only at start-up (--state-in). A live load at a safe point is a
-    // fork-side change (state.cpp), planned; until then the client restarts the title with --state-in.
-    e = "load not supported yet (restart with --state-in)";
-    return false;
+bool hook_load(const std::string& path, std::string& e) {
+    // checked now, loaded at the next safe moment (the runtime patch's live load); `loaded` reports it
+    if (!std::getenv("SF3_STATE_ID")) return e = "load needs SF3_STATE_ID (the executable/disc identity)", false;
+    try { state_request_load(path); return true; } catch (const std::exception& x) { e = x.what(); return false; }
 }
+std::string hook_load_status() { return std::string(state_load_busy() ? "busy " : "done ") + std::to_string(state_load_result()); }
 std::string hook_save_status() { return std::string(state_save_busy() ? "busy " : "done ") + std::to_string(state_write_result()); }
 std::string hook_info() { return "sfiii-ps5 PPSA93303 devtools"; }
 
@@ -52,7 +52,7 @@ void start() {
     if (!c.enabled) return;
     DevHooks h{};
     h.vblanks = hook_vblanks, h.ld8 = hook_ld8, h.st8 = hook_st8, h.press = hook_press, h.frame = hook_frame;
-    h.save_state = hook_save, h.load_state = hook_load, h.save_status = hook_save_status, h.info = hook_info;
+    h.save_state = hook_save, h.load_state = hook_load, h.save_status = hook_save_status, h.load_status = hook_load_status, h.info = hook_info;
     devtools_start(c, h);
 }
 }  // namespace

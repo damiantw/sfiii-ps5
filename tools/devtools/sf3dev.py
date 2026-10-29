@@ -64,6 +64,7 @@ class Client:
 
     # agent.Run-compatible
     def pause(self):
+        self.paused = True
         self._ask("pause")
         return self._vblank(self._line())
 
@@ -96,13 +97,25 @@ class Client:
         return self._ask("info")[5:]
 
     def run(self):
+        self.paused = False
         self._ask("run")
 
     def save(self, path):
         self._ask("save " + path)
 
-    def load(self, path):
+    def load(self, path, wait=True):
+        """Loads a native state live, at the game's next safe moment. True once it has loaded."""
         self._ask("load " + path)
+        if not wait:
+            return None
+        import time
+        for _ in range(400):                       # the load happens as the game runs: step it when paused
+            st = self._ask("loaded").split()
+            if st[1] == "done":
+                return st[2] == "1"
+            if getattr(self, "paused", False): self.step(1)
+            else: time.sleep(0.025)
+        return False
 
     def log(self, n=100):
         k = int(self._ask(f"log {n}").split()[1])

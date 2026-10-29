@@ -21,6 +21,7 @@ struct DevHooks {                       // what the server needs from the game (
     bool (*save_state)(const std::string& path, std::string& error);    // at the next safe point
     bool (*load_state)(const std::string& path, std::string& error);
     std::string (*save_status)();                                       // "busy|done RESULT"
+    std::string (*load_status)();                                       // "busy|done RESULT" (1 loaded, -1 timed out)
     std::string (*info)();                                              // disc, build, title id
 };
 
