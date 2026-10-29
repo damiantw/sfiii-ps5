@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/patch_quirks.dir/link.d CMakeFiles/patch_quirks.dir/tests/patch_quirks.cpp.o -o patch_quirks  libsf3ps5_patch.a libsf3ps5_disc.a external/libchdr/libchdr-static.a external/libchdr/deps/lzma-26.02/libchdr-lzma.a external/libchdr/deps/zstd-1.5.7/libzstd.a external/libchdr/deps/miniz-3.1.2/libminiz.a libsf3_7z.a

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsf3ps5_vulkan.a CMakeFiles/sf3ps5_vulkan.dir/src/vulkan/vk_scene.cpp.o
-/usr/bin/ranlib libsf3ps5_vulkan.a

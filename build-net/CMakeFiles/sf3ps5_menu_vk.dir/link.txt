@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsf3ps5_menu_vk.a CMakeFiles/sf3ps5_menu_vk.dir/src/vulkan/menu_vk.cpp.o CMakeFiles/sf3ps5_menu_vk.dir/external/imgui/backends/imgui_impl_vulkan.cpp.o
-/usr/bin/ranlib libsf3ps5_menu_vk.a

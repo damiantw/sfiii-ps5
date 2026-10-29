@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsf3ps5_patch.a CMakeFiles/sf3ps5_patch.dir/src/patch/netjson.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/dfr.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/vfs.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/sevenzip.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/package.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/build.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/fetch.cpp.o CMakeFiles/sf3ps5_patch.dir/src/patch/fetch_sce.cpp.o
-/usr/bin/ranlib libsf3ps5_patch.a

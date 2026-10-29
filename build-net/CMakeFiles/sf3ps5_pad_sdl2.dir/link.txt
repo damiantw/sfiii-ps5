@@ -1,2 +1,0 @@
-/usr/bin/ar qc libsf3ps5_pad_sdl2.a CMakeFiles/sf3ps5_pad_sdl2.dir/src/menu/pad_sdl2.cpp.o
-/usr/bin/ranlib libsf3ps5_pad_sdl2.a

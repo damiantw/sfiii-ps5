@@ -1,1 +1,0 @@
-/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/sevenzip_test.dir/link.d CMakeFiles/sevenzip_test.dir/tests/sevenzip_test.cpp.o -o sevenzip_test  libsf3ps5_patch.a libsf3ps5_disc.a external/libchdr/libchdr-static.a external/libchdr/deps/lzma-26.02/libchdr-lzma.a external/libchdr/deps/zstd-1.5.7/libzstd.a external/libchdr/deps/miniz-3.1.2/libminiz.a libsf3_7z.a

@@ -1,2 +1,0 @@
-/usr/bin/ar qc libzstd.a CMakeFiles/zstd.dir/zstddeclib.c.o
-/usr/bin/ranlib libzstd.a
