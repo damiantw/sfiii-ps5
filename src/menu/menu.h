@@ -25,6 +25,10 @@ public:
     virtual std::string state_info(int slot) { (void)slot; return {}; }   // "" = empty, else a timestamp
     virtual void settings_changed(const Settings&) {}
     virtual std::shared_ptr<fetch::Transport> transport() { return nullptr; }   // nullptr: downloads unavailable
+    // Why the last save_state/load_state returned false ("" = no reason given).
+    virtual std::string last_error() { return {}; }
+    // save_state/load_state may only queue the work; true then means "accepted", and the
+    // outcome comes later through Menu::notify.
 };
 
 enum class Page { Launcher, Patch, Download, Settings, InGame };
@@ -40,6 +44,8 @@ public:
     void set_in_game(bool g) { in_game_ = g; }
     void draw();                       // inside an ImGui frame
     void handle(const PadEvents& e);   // before draw(): toggle, L1/R1 tabs
+    void notify(std::string text) { toast_ = std::move(text); }   // the in-game page's status line
+    const std::string& status_text() const { return toast_; }
 
     void set_reproducible(bool r) { reproducible_ = r; }   // tests: deterministic patch output
 

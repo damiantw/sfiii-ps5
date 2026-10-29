@@ -29,7 +29,12 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   (`src/vulkan/menu_vk`) on top of the game picture, and the gamepad drives it: touchpad or
   Options opens and closes it, L1/R1 switch tabs, the d-pad or left stick moves, Cross picks,
   Circle goes back. While it is closed, holding R2 fast-forwards. Tested on Linux (lavapipe and an
-  SDL2 virtual controller), not yet on the console. It is not wired to the emulator yet.
+  SDL2 virtual controller), not yet on the console. `src/runtime/runtime_host` connects it to
+  the saturn-recomp runtime: save/load go to the runtime's native states (one folder per disc,
+  10 slots; the result shows in the menu once the runtime has written or loaded the state at its
+  next safe moment), the game pauses while the overlay is open, and the speed and R2
+  fast-forward go to the pacer. The PS5 host that runs the runtime is not written yet.
+  Our build refuses saturn-recomp's optional `SATURN_VDP1_GPL` renderer, which would make it GPL.
 - the debug server, its client and the crash handler (`docs/devtools.md`)
 - a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
 
@@ -92,7 +97,9 @@ build/sf3patch patch disc.cue --package ... --in-place     # replaces the BIN/CU
 timestamps; that is how the tests compare against the Python patcher.
 
 CI (`.github/workflows/ci.yml`) builds everything and runs the tests that need no game data: the
-debug server test, `patch_quirks` against the Python patcher, `tests/sevenzip_test.sh` (synthetic files packed
+debug server test, `patch_quirks` against the Python patcher, `runtime_host_test` (the menu's runtime glue on a fake runtime), a compile of
+`src/runtime/runtime_bind.cpp` against the pinned saturn-recomp with sfiii-native's patch,
+`tests/sevenzip_test.sh` (synthetic files packed
 five ways with the 7-Zip CLI), `vk_scene_test` and `vk_menu_test`
 (Mesa's lavapipe software Vulkan, SDL2 virtual controller), and the disc-data and release checks.
 

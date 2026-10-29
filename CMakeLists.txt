@@ -81,6 +81,21 @@ target_include_directories(imgui PUBLIC ${IMGUI_DIR})
 find_package(Threads REQUIRED)
 add_library(sf3ps5_menu STATIC src/menu/menu.cpp src/menu/jobs.cpp src/menu/settings.cpp src/menu/pad.cpp)
 target_link_libraries(sf3ps5_menu PUBLIC sf3ps5_patch imgui Threads::Threads)
+# saturn-recomp can draw VDP1 by Mednafen's rules (SATURN_VDP1_GPL), which makes the build GPL: never here.
+if(SATURN_VDP1_GPL)
+  message(FATAL_ERROR "SATURN_VDP1_GPL makes the build GPL; sfiii-ps5 stays MIT (keep it OFF)")
+endif()
+# menu::Host on the saturn-recomp runtime; runtime_bind.cpp (the real calls) only with SF3_PS5_RUNTIME_DIR.
+add_library(sf3ps5_runtime_host STATIC src/runtime/runtime_host.cpp)
+target_include_directories(sf3ps5_runtime_host PUBLIC src)
+target_link_libraries(sf3ps5_runtime_host PUBLIC sf3ps5_menu)
+if(SF3_PS5_RUNTIME_DIR)
+  add_library(sf3ps5_runtime_bind OBJECT src/runtime/runtime_bind.cpp)
+  target_include_directories(sf3ps5_runtime_bind PRIVATE src
+    ${SF3_PS5_RUNTIME_DIR}/runtime/include ${SF3_PS5_RUNTIME_DIR}/runtime/include/saturn
+    ${SF3_PS5_RUNTIME_DIR}/runtime/src/machine ${SF3_PS5_RUNTIME_DIR}/runtime/src/video ${SF3_PS5_RUNTIME_DIR}/runtime/src
+    ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
+endif()
 # Gamepad through SDL2's GameController (PC; the PS5's SDL2 port provides the same API).
 find_package(SDL2 QUIET)
 if(SDL2_FOUND)
@@ -102,6 +117,8 @@ if(NOT CMAKE_CROSSCOMPILING)
   add_library(imgui_hooked STATIC ${IMGUI_SOURCES} ${IMGUI_DIR}/backends/imgui_impl_null.cpp)
   target_include_directories(imgui_hooked PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
   target_compile_definitions(imgui_hooked PUBLIC IMGUI_ENABLE_TEST_ENGINE)
+  add_executable(runtime_host_test tests/runtime_host_test.cpp)
+  target_link_libraries(runtime_host_test sf3ps5_runtime_host)
   add_executable(sevenzip_test tests/sevenzip_test.cpp)
   target_link_libraries(sevenzip_test sf3ps5_patch)
   target_include_directories(sevenzip_test PRIVATE src)

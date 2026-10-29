@@ -239,11 +239,12 @@ void Menu::in_game_page() {
     ImGui::SliderInt("Slot", &state_slot_, 0, STATE_SLOTS - 1);
     std::string info = host_.state_info(state_slot_);
     ImGui::TextDisabled("%s", info.empty() ? "empty" : info.c_str());
-    if (ImGui::Button("Save")) toast_ = host_.save_state(state_slot_) ? "saved" : "save failed";
+    auto failed = [&](const char* what) { std::string e = host_.last_error(); return e.empty() ? std::string(what) : std::string(what) + ": " + e; };
+    if (ImGui::Button("Save")) toast_ = host_.save_state(state_slot_) ? "saved" : failed("save failed");
     ImGui::SameLine();
     ImGui::BeginDisabled(info.empty());
     bool loaded = false;
-    if (ImGui::Button("Load")) { loaded = host_.load_state(state_slot_); toast_ = loaded ? "" : "load failed"; }
+    if (ImGui::Button("Load")) { loaded = host_.load_state(state_slot_); toast_ = loaded ? "" : failed("load failed"); }
     ImGui::EndDisabled();
     if (loaded) { close(); return; }
     if (!toast_.empty()) { ImGui::SameLine(); ImGui::TextUnformatted(toast_.c_str()); }

@@ -22,6 +22,16 @@ jobs:
         run: tools/devtools/test_sf3dev.py build/test_debug_server
       - name: Patcher quirks vs the Python patcher
         run: python3 tests/patch_quirks.py external/sfiii-native build
+      - name: Menu runtime glue (fake runtime)
+        run: build/runtime_host_test
+      - name: Runtime binding compiles against the pinned, patched saturn-recomp
+        run: |
+          rt=$(python3 -c "import json;d=json.load(open('external/sfiii-native/dependencies.json'))['runtime'];print(d['url'],d['commit'])")
+          set -- $rt
+          git clone -q "$1" /tmp/saturn-recomp && git -C /tmp/saturn-recomp checkout -q "$2"
+          git -C /tmp/saturn-recomp apply "$PWD/external/sfiii-native/tools/runtime-diagnostics.patch"
+          cmake -S . -B build-rt -DSF3_PS5_RUNTIME_DIR=/tmp/saturn-recomp -DSF3_PS5_DEVTOOLS=ON
+          cmake --build build-rt -j4 --target sf3ps5_runtime_bind sf3ps5_runtime_agent
       - name: .7z add-on decoder
         run: tests/sevenzip_test.sh build
       - name: Vulkan scene test (lavapipe)
