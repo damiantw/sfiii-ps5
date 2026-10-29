@@ -32,6 +32,9 @@ using namespace sf3;
 // code the recompiler missed runs interpreted instead of stopping the game. Weak: a tree built
 // without it keeps the runtime's fatal stop.
 void sf3_interp_fallback_install() __attribute__((weak));
+// A generic game build's module set loader (sfiii-native native/recomp/gen/x64_set.cpp): installs the
+// code caches the generator made from the user's disc. Absent in a build with a generated tree.
+bool sf3_x64_install_set(const std::string& dir, std::string& why) __attribute__((weak));
 
 namespace {
 host::PlatformHost* g_host = nullptr;
@@ -225,6 +228,11 @@ int main(int argc, char** argv) {
     cfg.save = settings.data_dir + "/saves/backup.bin";   // one backup memory, shared by the scenarios
     cfg.settings = "-";
     cfg.out = settings.data_dir + "/logs";
+    if (const char* set = std::getenv("SF3_X64_SET")) {   // a generated module set (dev path; see docs/pc-run.md)
+        std::string why;
+        if (!sf3_x64_install_set) { std::fprintf(stderr, "SF3_X64_SET: this build has no module set loader\n"); return 1; }
+        if (!sf3_x64_install_set(set, why)) { std::fprintf(stderr, "SF3_X64_SET: %s\n", why.c_str()); return 1; }
+    }
     sat_set_run_over_hook(run_over);
     if (sf3_interp_fallback_install) sf3_interp_fallback_install();
     int code = saturn_main(cfg);
