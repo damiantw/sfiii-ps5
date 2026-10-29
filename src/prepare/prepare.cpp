@@ -137,6 +137,12 @@ Result prepare_disc(const std::string& image, const std::string& data, const std
             return r;
         }
         work = data + "/cache/work-" + std::to_string(getpid());
+        // work folders left by runs that crashed or were killed (another pid each time)
+        for (auto it = fs::directory_iterator(data + "/cache", ec); !ec && it != fs::directory_iterator(); it.increment(ec)) {
+            std::string n = it->path().filename().string();
+            if (n.rfind("work-", 0) == 0 && it->path().string() != work) remove_all(it->path().string(), ec);
+        }
+        ec.clear();
         remove_all(work, ec);
         fs::create_directories(work + "/extract");
         disc::Probe p = disc::probe(d, work + "/extract", [&](uint64_t done, uint64_t total) {
