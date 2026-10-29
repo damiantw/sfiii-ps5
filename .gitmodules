@@ -1,0 +1,3 @@
+[submodule "external/sfiii-native"]
+	path = external/sfiii-native
+	url = https://github.com/damiantw/sfiii-native.git
