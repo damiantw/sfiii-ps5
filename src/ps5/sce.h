@@ -1,6 +1,7 @@
 // The few PS5 system-library calls the console app makes (libScePad, libSceAudioOut,
 // libSceUserService), declared from the public API shape only. MIT, see LICENSE.
 #pragma once
+#include <cstddef>
 #include <cstdint>
 
 extern "C" {
@@ -8,6 +9,7 @@ extern "C" {
 int sceUserServiceInitialize(const void* params);
 int sceUserServiceGetInitialUser(int32_t* user);
 int sceUserServiceGetForegroundUser(int32_t* user);
+int sceUserServiceGetLoginUserIdList(int32_t list[4]);   // unused slots are -1
 
 // Pad. Only the leading fields of the state are read; the buffer is larger than the system's.
 int scePadInit(void);
@@ -26,6 +28,7 @@ int sceAudioOutClose(int32_t handle);
 namespace sf3::ps5 {
 constexpr int32_t kUserSystem = 0xFF;      // the system user, for audio
 constexpr int32_t kPadStandard = 0;
+constexpr int32_t kPadRemote = 16;         // the remote-control port (Remote Play)
 constexpr int32_t kAudioMain = 0;
 constexpr uint32_t kAudioS16Stereo = 1;
 

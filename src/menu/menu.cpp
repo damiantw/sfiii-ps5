@@ -133,6 +133,7 @@ void Menu::launcher() {
     if (unknown) ImGui::TextDisabled("%zu other images were not recognised", unknown);
     ImGui::BeginDisabled(jobs_.busy());
     if (ImGui::Button("Rescan")) jobs_.start_scan(s_.data_dir);
+    if (!diag_.empty()) ImGui::TextDisabled("%s", diag_.c_str());
     ImGui::EndDisabled();
 }
 

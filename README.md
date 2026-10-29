@@ -184,3 +184,7 @@ MIT (see LICENSE). Third-party code must be MIT/BSD-compatible. There is no GPL/
 ### PS5: reading /data
 
 A PS5 title may not use libc `opendir`/`realpath`/`getcwd` (EPERM). The disc scan lists directories with `open(O_DIRECTORY)` + `getdents`, and MIT shims give `getcwd` = `/app0` and a lexical `realpath`. Put discs under `/data/shiningforceiii/` (any subfolder layout); launch the title from the home screen.
+
+### PS5: controllers
+
+The launcher reads every logged-in user's controller and the remote-control port, so a Remote Play pad drives the menu too. The launcher's last line shows the pad state. Dev builds can also be driven without a pad (docs/devtools.md: `launch=` in /data/sfiii/devtools.enable).

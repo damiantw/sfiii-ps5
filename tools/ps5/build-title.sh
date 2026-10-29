@@ -26,7 +26,7 @@ for l in libSceAgc:SF3_STUB_AGC libSceAgcDriver:SF3_STUB_AGC_DRIVER; do
 rm -f "$W/stubs/libvulkan_none.a"; ar rc "$W/stubs/libvulkan_none.a"
 cmake -G Ninja -S "$R/external/sfiii-native/native/recomp/generic" -B "$B" \
   -DCMAKE_TOOLCHAIN_FILE="$R/tools/ps5/prospero.cmake" -DCMAKE_BUILD_TYPE=Release \
-  -DSATURN_RUNTIME="$SATURN_RUNTIME" -DSATURN_NO_SDL=ON -DSATURN_EXTRA="$R/tools/ps5/saturn_ps5.cmake" \
+  -DSATURN_RUNTIME="$SATURN_RUNTIME" -DSATURN_NO_SDL=ON -DSF3_PS5_DEVTOOLS="${SF3_PS5_DEVTOOLS:-OFF}" -DSATURN_EXTRA="$R/tools/ps5/saturn_ps5.cmake" \
   -DSF3_PS5_ROOT="$R" -DSF3_PS5_TITLE_ID="$TITLE_ID" -DRADV_ARCHIVE="$RADV_ARCHIVE" -DSF3_PS5_STUBS="$W/stubs" \
   -DVulkan_INCLUDE_DIR="$VULKAN_INCLUDE" -DVulkan_LIBRARY="$W/stubs/libvulkan_none.a" >"$W/cmake.log"
 ninja -C "$B" sf3ps5

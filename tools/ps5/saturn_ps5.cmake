@@ -22,6 +22,16 @@ target_include_directories(sf3ps5 PRIVATE ${SF3_PS5_ROOT}/src ${_p} ${SATURN_RUN
     ${SATURN_RUNTIME}/src/machine ${SATURN_RUNTIME}/src/video ${SATURN_RUNTIME}/src)
 target_compile_definitions(sf3ps5 PRIVATE SF3_PS5_PROFILES_DIR="/app0/profiles")
 target_compile_definitions(sf3ps5_host PRIVATE SF3_PS5_TITLE_ID="${SF3_PS5_TITLE_ID}")
+# Dev build (SF3_PS5_DEVTOOLS=ON): the debug server, in the launcher and (runtime_agent.cpp,
+# in place of the runtime's machine/agent.cpp) in game. Enabled at run time by /data/sfiii/devtools.enable.
+if(SF3_PS5_DEVTOOLS)
+  get_target_property(_ms saturn_machine SOURCES)
+  list(FILTER _ms EXCLUDE REGEX "machine/agent\\.cpp$")
+  set_property(TARGET saturn_machine PROPERTY SOURCES ${_ms})
+  target_sources(sf3ps5 PRIVATE ${SF3_PS5_ROOT}/src/devtools/runtime_agent.cpp)
+  target_compile_definitions(sf3ps5 PRIVATE SF3_PS5_DEVTOOLS=1)
+  target_link_libraries(sf3ps5 sf3ps5_devtools)
+endif()
 target_link_libraries(sf3ps5 saturn_core saturn_machine sf3ps5_host sf3ps5_prepare sf3ps5_runtime_bind recomp)
 set(_l ${PS5_SDK}/target/lib)
 file(GLOB _sce ${_l}/*.so)

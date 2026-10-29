@@ -46,6 +46,7 @@ public:
     void handle(const PadEvents& e);   // before draw(): toggle, L1/R1 tabs
     void notify(std::string text) { toast_ = std::move(text); }   // the in-game page's status line
     const std::string& status_text() const { return toast_; }
+    void set_diag(std::string d) { diag_ = std::move(d); }        // a dim last line on the launcher (pad state)
 
     void set_reproducible(bool r) { reproducible_ = r; }   // tests: deterministic patch output
 
@@ -76,7 +77,7 @@ private:
     std::string list_error_;
     std::vector<bool> ticks_;
     int state_slot_ = 0;
-    std::string toast_;
+    std::string toast_, diag_;
 };
 
 }  // namespace sf3::menu
