@@ -3,7 +3,10 @@
 #include "patch/build.h"
 #include "patch/package.h"
 #include <algorithm>
+#include <cerrno>
 #include <cstdio>
+#include <cstring>
+#include <dirent.h>
 #include <ctime>
 
 namespace sf3::menu {
@@ -169,6 +172,15 @@ void Jobs::start_scan(const std::string& dir) {
         auto r = disc::scan(dir, o);
         { std::lock_guard<std::mutex> l(mu_); scan_ = r; }
         log("found " + std::to_string(r.all.size()) + " images");
+        if (r.all.empty()) {  // say why: unreadable folder, or what is in it
+            DIR* d = opendir(dir.c_str());
+            if (!d) { log("cannot open " + dir + ": " + std::strerror(errno)); return; }
+            closedir(d);
+            auto names = disc::list_dir(dir);
+            log(std::to_string(names.size()) + " entries in " + dir);
+            for (size_t i = 0; i < names.size() && i < 8; i++)
+                log("  " + names[i] + (disc::is_dir(disc::path_join(dir, names[i])) ? "/" : ""));
+        }
     });
 }
 
