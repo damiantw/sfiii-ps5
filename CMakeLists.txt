@@ -57,7 +57,16 @@ add_library(sf3ps5_disc STATIC
   src/patch/dotnet.cpp src/patch/ipbin.cpp)
 target_include_directories(sf3ps5_disc PUBLIC src)
 target_link_libraries(sf3ps5_disc PUBLIC chdr-static)
+# The translation patcher (port of sfiii-native tools/sf3patch); zip reading uses libchdr's miniz (MIT).
+add_library(sf3ps5_patch STATIC
+  src/patch/netjson.cpp src/patch/dfr.cpp src/patch/vfs.cpp src/patch/package.cpp src/patch/build.cpp src/patch/fetch.cpp)
+target_link_libraries(sf3ps5_patch PUBLIC sf3ps5_disc miniz)
+target_include_directories(sf3ps5_patch PRIVATE external/libchdr/deps/miniz-3.1.2)
 if(NOT CMAKE_CROSSCOMPILING)
   add_executable(sf3disc src/cli/sf3disc.cpp)
   target_link_libraries(sf3disc sf3ps5_disc)
+  add_executable(sf3patch src/cli/sf3patch.cpp)
+  target_link_libraries(sf3patch sf3ps5_patch)
+  add_executable(patch_quirks tests/patch_quirks.cpp)
+  target_link_libraries(patch_quirks sf3ps5_patch)
 endif()
