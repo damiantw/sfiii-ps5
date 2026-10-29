@@ -16,7 +16,7 @@ list(APPEND _rs ${SF3_PS5_ROOT}/src/ps5/loader_ps5.cpp)
 set_property(TARGET recomp PROPERTY SOURCES ${_rs})
 set(_p ${SF3_PS5_ROOT}/ps5/platform)
 add_executable(sf3ps5 ${SF3_PS5_ROOT}/src/host/host_runtime.cpp ${SATURN_RUNTIME}/src/host/settings.cpp
-    ${_p}/crt/start.c ${_p}/crt/cxx_new.cpp ${_p}/title/fpenv.c ${_p}/title/libc_gaps.c ${_p}/title/thread_stack.c ${_p}/title/locale_gaps.c
+    ${_p}/crt/start.c ${_p}/crt/cxx_new.cpp ${_p}/title/fpenv.c ${_p}/title/libc_gaps.c ${_p}/title/thread_stack.c ${_p}/title/locale_gaps.c ${_p}/title/path_shims.c
     ${_p}/vk_dispatch.cpp $<TARGET_OBJECTS:sf3_interp> $<TARGET_OBJECTS:sf3_x64_set>)
 target_include_directories(sf3ps5 PRIVATE ${SF3_PS5_ROOT}/src ${_p} ${SATURN_RUNTIME}/include ${SATURN_RUNTIME}/include/saturn
     ${SATURN_RUNTIME}/src/machine ${SATURN_RUNTIME}/src/video ${SATURN_RUNTIME}/src)

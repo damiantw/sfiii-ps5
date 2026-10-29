@@ -53,8 +53,37 @@ std::string path_suffix_lower(const std::string& p) {
     if (k == std::string::npos || k == 0) return "";
     return to_lower_ascii(n.substr(k));
 }
+#if SF3_PS5_CONSOLE
+int sf3_last_getdents = 0, sf3_last_getdents_errno = 0;
+extern "C" int getdents(int fd, char* buf, int nbytes);
+// The kernel's own directory read: open + getdents, no libc opendir. Returns false
+// if the folder cannot be opened (errno set).
+static bool list_dir_kernel(const std::string& dir, std::vector<std::string>& out) {
+    int fd = open(dir.c_str(), O_RDONLY | O_DIRECTORY);
+    if (fd < 0) return false;
+    // A whole directory block: /data reports 64 KiB directories, and a smaller
+    // buffer reads nothing there.
+    std::vector<char> buf(65536);
+    int n;
+    while ((n = getdents(fd, buf.data(), int(buf.size()))) > 0) {
+        for (int o = 0; o < n;) {
+            auto* e = reinterpret_cast<dirent*>(buf.data() + o);
+            if (e->d_reclen == 0) break;
+            if (e->d_fileno != 0 && strcmp(e->d_name, ".") && strcmp(e->d_name, "..")) out.push_back(e->d_name);
+            o += e->d_reclen;
+        }
+    }
+    int e = errno;
+    close(fd);
+    sf3_last_getdents = n; sf3_last_getdents_errno = n < 0 ? e : 0;
+    return true;
+}
+#endif
 std::vector<std::string> list_dir(const std::string& dir) {
     std::vector<std::string> out;
+#if SF3_PS5_CONSOLE
+    if (list_dir_kernel(dir, out)) return out;  // libc opendir is refused in a title
+#endif
     DIR* d = opendir(dir.c_str());
     if (!d) return out;
     while (dirent* e = readdir(d)) {
