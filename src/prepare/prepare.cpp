@@ -11,12 +11,53 @@
 #include <sstream>
 #include <system_error>
 #include <unistd.h>
+#if defined(SF3_PS5_CONSOLE)
+#include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#endif
 #include <vector>
 
 namespace fs = std::filesystem;
 
+#if defined(SF3_PS5_CONSOLE)
+extern "C" void sf3_fault_memory(const char* tag);   // ps5/platform/title/fault_klog.c
+#endif
+
 namespace sf3::prepare {
 namespace {
+#if defined(SF3_PS5_CONSOLE)
+// std::filesystem::remove_all goes through openat/unlinkat/fdopendir, which a title cannot
+// resolve (libkernel_sys only; they come out as null calls). A walk with open + getdents instead.
+extern "C" int getdents(int, char*, int);
+void remove_tree(const std::string& p) {
+    struct stat st;
+    if (lstat(p.c_str(), &st) != 0) return;
+    if (!S_ISDIR(st.st_mode)) { unlink(p.c_str()); return; }
+    std::vector<std::string> names;
+    int fd = open(p.c_str(), O_RDONLY | O_DIRECTORY);
+    if (fd >= 0) {
+        std::vector<char> buf(65536);
+        int n;
+        while ((n = getdents(fd, buf.data(), int(buf.size()))) > 0)
+            for (int off = 0; off < n;) {
+                auto* d = reinterpret_cast<const dirent*>(buf.data() + off);
+                if (!d->d_reclen) break;
+                std::string nm(d->d_name, d->d_namlen);
+                if (d->d_fileno && nm != "." && nm != "..") names.push_back(nm);
+                off += d->d_reclen;
+            }
+        close(fd);
+    }
+    for (auto& nm : names) remove_tree(p + "/" + nm);
+    rmdir(p.c_str());
+}
+void remove_all(const fs::path& p, std::error_code&) { remove_tree(p.string()); }
+std::string abs_path(const fs::path& p) { return p.string(); }   // console paths are absolute (/data/...)
+#else
+void remove_all(const fs::path& p, std::error_code& ec) { fs::remove_all(p, ec); }
+std::string abs_path(const fs::path& p) { return fs::absolute(p).string(); }
+#endif
 
 // The image's files (the .cue/.chd and each track's file) with size and mtime: a cheap check that
 // the image is the one hashed before.
@@ -30,7 +71,7 @@ std::string stamp(const disc::Disc& d) {
         std::error_code ec;
         auto size = fs::file_size(p, ec);
         auto t = fs::last_write_time(p, ec).time_since_epoch().count();
-        s += fs::absolute(p).string() + "|" + std::to_string((unsigned long long)size) + "|" + std::to_string((long long)t) + ";";
+        s += abs_path(p) + "|" + std::to_string((unsigned long long)size) + "|" + std::to_string((long long)t) + ";";
     }
     return s;
 }
@@ -75,7 +116,14 @@ std::string set_dir_for(const std::string& data, const std::string& id) {
 Result prepare_disc(const std::string& image, const std::string& data, const std::string& profiles,
                     const std::function<void(double, const std::string&)>& progress) {
     Result r;
-    auto say = [&](double p, const std::string& what) { if (progress) progress(p, what); };
+    std::string last_step;
+    auto say = [&](double p, const std::string& what) {
+#if defined(SF3_PS5_CONSOLE)
+        if (what != last_step) sf3_fault_memory(what.c_str());   // where the memory goes, step by step
+#endif
+        last_step = what;
+        if (progress) progress(p, what);
+    };
     std::string work;
     try {
         std::error_code ec;
@@ -89,7 +137,7 @@ Result prepare_disc(const std::string& image, const std::string& data, const std
             return r;
         }
         work = data + "/cache/work-" + std::to_string(getpid());
-        fs::remove_all(work, ec);
+        remove_all(work, ec);
         fs::create_directories(work + "/extract");
         disc::Probe p = disc::probe(d, work + "/extract", [&](uint64_t done, uint64_t total) {
             say(total ? 0.35 * double(done) / double(total) : 0, "Reading the disc");
@@ -97,7 +145,7 @@ Result prepare_disc(const std::string& image, const std::string& data, const std
         r.content_id = p.content_id;
         remember(data, st, p.content_id);
         r.set_dir = set_dir_for(data, p.content_id);
-        if (complete(r.set_dir)) { fs::remove_all(work, ec); r.ok = r.cached = true; return r; }
+        if (complete(r.set_dir)) { remove_all(work, ec); r.ok = r.cached = true; return r; }
         r.profile = disc::match_profile(profiles, p.content_id);
         if (r.profile.empty())
             throw std::runtime_error("this disc's contents are not a supported revision (content ID " + p.content_id + ")");
@@ -106,7 +154,7 @@ Result prepare_disc(const std::string& image, const std::string& data, const std
         std::string candidate = gen::audit_profile(work, r.profile);
         { std::ofstream(work + "/candidate.json", std::ios::binary) << candidate; }
         std::string tmp = r.set_dir + ".tmp";
-        fs::remove_all(tmp, ec);
+        remove_all(tmp, ec);
         gen::GenOptions o;
         o.work = work;
         o.profile = work + "/candidate.json";
@@ -116,16 +164,16 @@ Result prepare_disc(const std::string& image, const std::string& data, const std
         };
         gen::generate_from_profile(o);
         if (!complete(tmp)) throw std::runtime_error("the generator wrote no module set");
-        fs::remove_all(r.set_dir, ec);
+        remove_all(r.set_dir, ec);
         fs::rename(tmp, r.set_dir);
-        fs::remove_all(work, ec);
+        remove_all(work, ec);
         say(1, "Ready");
         r.ok = true;
     } catch (const std::exception& e) {
         r.why = e.what();
         std::error_code ec;
-        if (!work.empty()) fs::remove_all(work, ec);
-        if (!r.set_dir.empty()) fs::remove_all(r.set_dir + ".tmp", ec);
+        if (!work.empty()) remove_all(work, ec);
+        if (!r.set_dir.empty()) remove_all(r.set_dir + ".tmp", ec);
     }
     return r;
 }

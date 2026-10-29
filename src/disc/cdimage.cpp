@@ -515,16 +515,42 @@ void Disc::init() {
 }
 
 std::vector<uint8_t> Disc::read_sectors(uint32_t lba, uint32_t count) const {
+    std::vector<uint8_t> out(size_t(count) * USER);
+    read_sectors_into(lba, count, out.data());
+    return out;
+}
+
+// User data of `count` sectors into `out`, read through a small bounce buffer for raw (2352) images.
+void Disc::read_sectors_into(uint32_t lba, uint32_t count, uint8_t* out) const {
     const Track& t = data();
     int ss = t.sector_size();
-    std::vector<uint8_t> raw(size_t(count) * ss);
-    size_t got = t.src->read(t.index1() + uint64_t(lba) * ss, raw.data(), raw.size());
-    if (got < raw.size())
-        throw DiscError("read past the end of the data track (sector " + std::to_string(lba + count) + ")");
-    if (ss == USER) return raw;
-    std::vector<uint8_t> out(size_t(count) * USER);
-    for (uint32_t k = 0; k < count; k++) memcpy(&out[size_t(k) * USER], &raw[size_t(k) * RAW + 16], USER);
-    return out;
+    auto past_end = [&] { return DiscError("read past the end of the data track (sector " + std::to_string(lba + count) + ")"); };
+    if (ss == USER) {
+        size_t want = size_t(count) * USER;
+        if (t.src->read(t.index1() + uint64_t(lba) * ss, out, want) < want) throw past_end();
+        return;
+    }
+    constexpr uint32_t kStep = 128;
+    std::vector<uint8_t> raw(size_t(kStep) * ss);
+    for (uint32_t k0 = 0; k0 < count; k0 += kStep) {
+        uint32_t n = std::min(kStep, count - k0);
+        size_t want = size_t(n) * ss;
+        if (t.src->read(t.index1() + uint64_t(lba + k0) * ss, raw.data(), want) < want) throw past_end();
+        for (uint32_t k = 0; k < n; k++) memcpy(out + size_t(k0 + k) * USER, &raw[size_t(k) * RAW + 16], USER);
+    }
+}
+
+void Disc::read_file_chunks(const Record& r, const std::function<void(const uint8_t*, size_t)>& chunk) const {
+    constexpr uint32_t kStep = 128;
+    std::vector<uint8_t> buf(size_t(kStep) * USER);
+    uint64_t left = r.size;
+    for (uint32_t s = 0; left > 0; s += kStep) {
+        uint32_t n = uint32_t(std::min<uint64_t>(kStep, (left + USER - 1) / USER));
+        read_sectors_into(r.lba + s, n, buf.data());
+        size_t take = size_t(std::min<uint64_t>(left, uint64_t(n) * USER));
+        chunk(buf.data(), take);
+        left -= take;
+    }
 }
 
 std::vector<uint8_t> Disc::read_file(const Record& r) const {

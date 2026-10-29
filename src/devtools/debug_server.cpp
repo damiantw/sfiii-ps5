@@ -13,6 +13,7 @@
 #include <mutex>
 #include <netinet/in.h>
 #include <netinet/tcp.h>
+#include <poll.h>
 #include <sstream>
 #include <sys/socket.h>
 #include <unistd.h>
@@ -48,6 +49,14 @@ bool send_all(const void* p, size_t n) {
 }
 void say(const std::string& s) { std::string l = s + "\n"; send_all(l.data(), l.size()); }
 
+// Whether fd has something to read (a client to accept, data, or the peer gone), not waiting.
+// O_NONBLOCK does not take on a PS5 title's sockets: accept and recv waited anyway, holding the
+// game at one VBlank per devtools command. poll with no timeout is asked first instead.
+bool readable(int fd) {
+    pollfd p{fd, POLLIN, 0};
+    return ::poll(&p, 1, 0) > 0;
+}
+
 void set_blocking(int fd, bool on) {
     int f = fcntl(fd, F_GETFL, 0);
     fcntl(fd, F_SETFL, on ? (f & ~O_NONBLOCK) : (f | O_NONBLOCK));
@@ -62,6 +71,7 @@ int next_line(std::string& line, bool block) {
             if (!line.empty() && line.back() == '\r') line.pop_back();
             return 1;
         }
+        if (!block && !readable(g_client)) return 0;
         set_blocking(g_client, block);
         char buf[4096];
         ssize_t n = ::recv(g_client, buf, sizeof buf, 0);
@@ -148,7 +158,7 @@ bool serve(const std::string& line) {
 }
 
 void accept_one() {
-    if (g_listen < 0 || g_client >= 0) return;
+    if (g_listen < 0 || g_client >= 0 || !readable(g_listen)) return;
     int fd = ::accept(g_listen, nullptr, nullptr);
     if (fd < 0) return;
     int one = 1;
@@ -182,7 +192,12 @@ bool devtools_start(const DevConfig& cfg, const DevHooks& hooks) {
     C = cfg, H = hooks;
     if (!C.enabled) return false;
     g_listen = ::socket(AF_INET, SOCK_STREAM, 0);
-    if (g_listen < 0) return false;
+    if (g_listen < 0) {
+        char m[64];
+        std::snprintf(m, sizeof m, "devtools: socket() failed errno %d", errno);
+        devtools_log(m);
+        return false;
+    }
     int one = 1;
     setsockopt(g_listen, SOL_SOCKET, SO_REUSEADDR, &one, sizeof one);
     sockaddr_in sa{};
@@ -203,6 +218,15 @@ bool devtools_start(const DevConfig& cfg, const DevHooks& hooks) {
 }
 
 void devtools_poll() {
+    // The runtime polls devices thousands of times a frame. A socket call each time (accept, recv)
+    // costs a syscall that on the PS5 is slow enough to drop the game to a VBlank every few seconds,
+    // so free-running the socket is looked at once a VBlank; a paused client waits below as before.
+    static uint64_t last = ~0ull;
+    if (!g_paused) {
+        uint64_t v = H.vblanks ? H.vblanks() : 0;
+        if (v == last) return;
+        last = v;
+    }
     accept_one();
     if (g_client < 0) return;
     std::string line;

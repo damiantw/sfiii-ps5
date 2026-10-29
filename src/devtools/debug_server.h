@@ -27,7 +27,7 @@ struct DevHooks {                       // what the server needs from the game (
 
 struct DevConfig {
     bool enabled = false;
-    int port = 9300;
+    int port = 9200;   // a title may bind 9200 (9300 and 9301 give EACCES), as Shipwright's devtools do
     std::string token;                  // empty: no auth
     std::string bind = "0.0.0.0";
 };
