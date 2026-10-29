@@ -15,7 +15,10 @@ extern int sceKernelGetCpumode(void);
 int sf3_companion_cpumode(void) { return sceKernelGetCpumode(); }
 
 // Import the same system libraries the module interface expects
-// (libSceLibcInternal, libSceSysmodule); never called.
-extern void* malloc(unsigned long);
+// (libSceSysmodule); never called. No libSceLibcInternal import: that module is the one loading us.
 extern int sceSysmoduleIsLoaded(unsigned int);
-void* sf3_companion_imports(int which) { return which ? (void*)(long)sceSysmoduleIsLoaded(0) : malloc(1); }
+void* sf3_companion_imports(int which) { return (void*)(long)sceSysmoduleIsLoaded((unsigned)which); }
+
+// DT_INIT. The loader checks its result: a bare ret (eax left over) made
+// libSceLibcInternal reject the module with PRX_SCE_MODULE_LOAD_ERROR.
+int sf3_companion_init(void) { return 0; }

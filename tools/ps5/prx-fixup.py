@@ -43,7 +43,7 @@ def file_off(va):  # the dynlib data sits in a flagless segment mapped after the
     return hits[-1]
 strs = bytes(d[file_off(strtab): file_off(strtab) + strsz]); modname = strs[name:strs.index(b"\0", name)]
 soname = strs.find(modname + b".prx\0"); assert soname >= 0, "no <module>.prx string for DT_SONAME"
-used = [v >> 48 for t, v in ents if t in (0x61000045, 0x61000049)]; lib_id = max(used + [0]) + 1
+used = [v >> 48 for t, v in ents if t == 0x61000049]; lib_id = max(used + [0]) + 1  # library ids only
 ents = [(t, v) for t, v in ents if not (t in DROP and v == 0)]
 ents = [(t, (v & ~(0xFFFF << 32)) | (0x0101 << 32)) if t == 0x61000043 else (t, v) for t, v in ents]
 ents += [(0x0E, soname), (0x61000047, (lib_id << 48) | (1 << 32) | name), (0x61000017, (lib_id << 48) | 1)]
