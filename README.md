@@ -73,6 +73,9 @@ build/sf3patch patch disc.cue --package ... --in-place     # replaces the BIN/CU
 `--enable/--disable/--only NAME` change which patches are ticked. `--reproducible` gives fixed
 timestamps; that is how the tests compare against the Python patcher.
 
+CI (`.github/workflows/ci.yml`) builds everything and runs the tests that need no game data: the
+debug server test, `patch_quirks` against the Python patcher, and the disc-data and release checks.
+
 Tests, which need your own discs and the translation package on the machine; neither is committed:
 `tests/sf3patch_vs_python.sh` (byte-identical to the Python patcher), `build/patch_quirks` with
 `tests/patch_quirks.py`, and `tests/menu_smoke.sh`. The last one drives the real menu headlessly

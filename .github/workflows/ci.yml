@@ -1,0 +1,24 @@
+name: ci
+on:
+  push:
+    branches: [main]
+  pull_request:
+jobs:
+  linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: No disc data
+        run: tools/ci/no-disc-data.sh
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSF3_PS5_DEVTOOLS=ON
+      - name: Build
+        run: cmake --build build -j4
+      - name: Debug server test
+        run: tools/devtools/test_sf3dev.py build/test_debug_server
+      - name: Patcher quirks vs the Python patcher
+        run: python3 tests/patch_quirks.py external/sfiii-native build
+      - name: Release check (dev build must be flagged)
+        run: "! tools/check-release.sh build/test_debug_server"
