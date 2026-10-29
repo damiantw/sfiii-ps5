@@ -180,3 +180,7 @@ through ImGui's null backend and checks both patch modes against the reference i
 
 ## License
 MIT (see LICENSE). Third-party code must be MIT/BSD-compatible. There is no GPL/LGPL code.
+
+### PS5: reading /data
+
+A PS5 title may not use libc `opendir`/`realpath`/`getcwd` (EPERM). The disc scan lists directories with `open(O_DIRECTORY)` + `getdents`, and MIT shims give `getcwd` = `/app0` and a lexical `realpath`. Put discs under `/data/shiningforceiii/` (any subfolder layout); launch the title from the home screen.

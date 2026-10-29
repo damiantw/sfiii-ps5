@@ -7,7 +7,15 @@
 #include <cstdio>
 #include <cstring>
 #include <dirent.h>
+#include <fcntl.h>
+#include <sys/stat.h>
+#include <unistd.h>
 #include <ctime>
+
+#if SF3_PS5_CONSOLE
+namespace sf3::disc { extern int sf3_last_getdents, sf3_last_getdents_errno; }
+using sf3::disc::sf3_last_getdents; using sf3::disc::sf3_last_getdents_errno;
+#endif
 
 namespace sf3::menu {
 
@@ -172,14 +180,25 @@ void Jobs::start_scan(const std::string& dir) {
         auto r = disc::scan(dir, o);
         { std::lock_guard<std::mutex> l(mu_); scan_ = r; }
         log("found " + std::to_string(r.all.size()) + " images");
-        if (r.all.empty()) {  // say why: unreadable folder, or what is in it
+        if (r.all.empty()) {  // say why, on one line (the status shows the last message)
+            auto err = [](bool ok) { return ok ? std::string("ok") : std::string(std::strerror(errno)); };
+            struct stat st;
+            std::string m = "stat /data " + err(stat("/data", &st) == 0);
+            int fd = open(dir.c_str(), O_RDONLY | O_DIRECTORY);
+            m += "; open " + err(fd >= 0);
+            if (fd >= 0) close(fd);
             DIR* d = opendir(dir.c_str());
-            if (!d) { log("cannot open " + dir + ": " + std::strerror(errno)); return; }
-            closedir(d);
+            m += "; opendir " + err(d != nullptr);
+            if (d) closedir(d);
             auto names = disc::list_dir(dir);
-            log(std::to_string(names.size()) + " entries in " + dir);
-            for (size_t i = 0; i < names.size() && i < 8; i++)
-                log("  " + names[i] + (disc::is_dir(disc::path_join(dir, names[i])) ? "/" : ""));
+            m += "; " + std::to_string(names.size()) + " entries";
+#if SF3_PS5_CONSOLE
+            m += " (getdents " + std::to_string(sf3_last_getdents) +
+                 (sf3_last_getdents_errno ? std::string(" ") + std::strerror(sf3_last_getdents_errno) : std::string()) + ")";
+#endif
+            for (size_t i = 0; i < names.size() && i < 3; i++)
+                m += (i ? ", " : ": ") + names[i] + (disc::is_dir(disc::path_join(dir, names[i])) ? "/" : "");
+            log(m);
         }
     });
 }
