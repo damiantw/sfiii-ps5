@@ -20,8 +20,10 @@ PadState decode_sce_pad(uint32_t b, const uint8_t st[4], uint8_t l2, uint8_t r2)
 }
 
 #if defined(SF3_PS5_CONSOLE)
-// Every logged-in user's controller and remote-control port: a Remote Play session's virtual
-// pad is not the initial user's standard pad, so all of them are read and merged.
+// Every logged-in user's standard controller port: a Remote Play session's virtual pad is not
+// the initial user's, so all of them are read and merged. Not the remote-control port (type 16):
+// a title that opens it takes the PS button, so PS never reached the system (no Control Center,
+// no way home). Remote Play pads read fine on the standard port (tested on the console).
 void ScePad::open_all() {
     int32_t users[4] = {-1, -1, -1, -1}, init_user = -1, fg = -1;
     int lr = sceUserServiceGetLoginUserIdList(users);
@@ -34,7 +36,7 @@ void ScePad::open_all() {
     std::string d = "pad: us " + std::to_string(us_rc_) + " login " + std::to_string(lr);
     char m[64];
     for (int32_t u : list)
-        for (int32_t t : {ps5::kPadStandard, ps5::kPadRemote}) {
+        for (int32_t t : {ps5::kPadStandard}) {
             int h = scePadOpen(u, t, 0, nullptr);
             if (h < 0) h = scePadGetHandle(u, t, 0);
             std::snprintf(m, sizeof m, "; u%d t%d %#x", u, t, unsigned(h));

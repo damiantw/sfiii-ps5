@@ -206,7 +206,7 @@ A PS5 title may not use libc `opendir`/`realpath`/`getcwd` (EPERM). The disc sca
 
 ### PS5: controllers
 
-The launcher reads every logged-in user's controller and the remote-control port, so a Remote Play pad drives the menu too. The launcher's last line shows the pad state. Dev builds can also be driven without a pad (docs/devtools.md: `launch=` in /data/sfiii/devtools.enable).
+The launcher reads every logged-in user's controller, so a Remote Play pad drives the menu too. It does not open the remote-control port: a title holding that port takes the PS button away from the system. The launcher's last line shows the pad state. Dev builds can also be driven without a pad (docs/devtools.md: `launch=` in /data/sfiii/devtools.enable).
 
 - Disc switch / quit to launcher relaunches via `sceSystemServiceLoadExec("/app0/eboot.bin")`; a running title cannot `LaunchApp` itself (0x8094000F).
 - JIT unwind info is registered per FDE (`__register_frame(fde)`); the SDK libunwind rejects a CIE pointer.
