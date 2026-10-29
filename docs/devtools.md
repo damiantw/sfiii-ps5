@@ -39,8 +39,11 @@ deterministic as `--agent`: the same presses at the same VBlanks give the same r
 ## Status
 - Done: the server, client and crash handler are tested on Linux against a fake machine
   (`cmake -DSF3_PS5_DEVTOOLS=ON`, then `tools/devtools/test_sf3dev.py build/test_debug_server`).
+- Wired to the runtime: `src/devtools/runtime_agent.cpp` replaces the runtime's `machine/agent.cpp` in the PS5 build.
+  It provides `agent_poll()`, which `machine.cpp` calls at every VBlank-IN, and fills the hooks: `ld8`/`st8`, `smpc_press`, `vdp2_compose`, `state_request_save`.
+  In a release build, `agent_poll()` is empty and has no `devtools_` references.
+  It compiles against the runtime headers. Running it inside a real runtime build waits for the PS5 build (or a desktop test build).
 - Next:
-  - Wire the hooks to the sfiii-native runtime (ld8/st8, smpc_press, vdp2_compose, state.cpp).
   - Add `load` to the runtime. Today it only has `--state-in` at start-up.
   - Add a `--agent-url tcp://...` option to sf3-story (fork PR).
   - First console tests: does bind/listen work in this title on fw 13.x? Shipwright saw it work on 12.x.
