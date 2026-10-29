@@ -37,15 +37,11 @@ translated Scenario 1 disc stops on any other image with "not an entry of an act
 
 ## One disc per process
 
-The runtime ends the process with `_Exit` once a run stops, so `saturn_main` never returns. On
-PC the app forks first, before any thread exists. The child runs everything, and the parent
-waits. When a disc is chosen in the menu, or the player quits to the launcher, the child sends
-the request down a pipe before it stops the machine. After the child has exited (backup memory
-and states already written), the parent `execv`s itself with the new arguments.
-
-On the console there is no fork yet. The relaunch after `saturn_main` is never reached there,
-so for now choosing another disc or quitting exits the app. Fixing it needs a hook in the
-runtime's stop path, after the backup memory is written.
+Once a run stops, the runtime writes the backup memory and states, then ends the process with
+`_Exit`, so `saturn_main` never returns. The app registers `sat_set_run_over_hook` (part of
+sfiii-native's runtime patch), and the runtime calls it right before `_Exit`. When a disc was
+chosen in the menu, or the player quit to the launcher, the hook relaunches the app with the new
+arguments: `execv` on PC, `sceSystemServiceLaunchApp` on the PS5 (not yet tried on the console).
 
 ## Test driver
 

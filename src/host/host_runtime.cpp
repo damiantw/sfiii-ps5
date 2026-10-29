@@ -21,10 +21,6 @@
 #include <filesystem>
 #include <memory>
 #include <string>
-#if !defined(SF3_PS5_CONSOLE)
-#include <sys/wait.h>
-#include <unistd.h>
-#endif
 
 #ifndef SF3_PS5_BUILD_ID
 #define SF3_PS5_BUILD_ID "dev"
@@ -32,17 +28,29 @@
 
 using namespace sf3;
 
+// The game build's SH-2 interpreter fallback (sfiii-native native/recomp/interp_fallback.cpp):
+// code the recompiler missed runs interpreted instead of stopping the game. Weak: a tree built
+// without it keeps the runtime's fatal stop.
+void sf3_interp_fallback_install() __attribute__((weak));
+
 namespace {
 host::PlatformHost* g_host = nullptr;
 host::AudioOut* g_audio = nullptr;
 bool g_have_audio = false;
 host::AppArgs g_next;           // what to start after this run
 bool g_relaunch = false;
-int g_next_fd = -1;   // PC: the pipe to the supervisor that relaunches (see run_supervised)
-void post_next() {    // the runtime ends with _Exit, so the request has to leave before it does
-    if (g_next_fd < 0) return;
-    std::string line = g_relaunch ? (g_next.cue.empty() ? std::string("L\n") : "C " + g_next.cue + "\n") : std::string("N\n");
-    (void)!::write(g_next_fd, line.data(), line.size());
+// saturn_main does not return: once a run stops, the runtime writes the backup memory and states,
+// calls this, then ends the process with _Exit. So a relaunch happens here, with the saves on disk.
+void run_over(int code) {
+    std::fprintf(stderr, "run ended (%d)%s%s\n", code, g_relaunch ? "; restarting " : "",
+                 g_relaunch ? (g_next.cue.empty() ? "into the launcher" : g_next.cue.c_str()) : "");
+    std::fflush(nullptr);
+    if (!g_relaunch) return;
+    const char* g = std::getenv("SF3_PS5_GEN");   // the test script's generation (script.h)
+    setenv("SF3_PS5_GEN", std::to_string((g ? std::atoi(g) : 0) + 1).c_str(), 1);
+    std::string why;
+    if (!host::relaunch(g_next, why))
+        std::fprintf(stderr, "relaunch: %s; exiting (start the app again from the home screen)\n", why.c_str());
 }
 std::string g_launch_cue;       // chosen in the launcher (no game running yet)
 
@@ -79,35 +87,6 @@ void host_audio_report() {
 int main(int argc, char** argv) {
     host::AppArgs args = host::AppArgs::parse(argc, argv);
     std::string why;
-#if !defined(SF3_PS5_CONSOLE)
-    // saturn_main never returns: the runtime ends the process with _Exit once the run stops.
-    // So the whole app runs in a child, forked before any thread exists, and this process only
-    // waits for it and does the relaunch the child asked for.
-    int fds[2];
-    if (::pipe(fds) == 0) {
-        pid_t pid = ::fork();
-        if (pid == 0) { ::close(fds[0]); g_next_fd = fds[1]; }
-        else if (pid > 0) {
-            ::close(fds[1]);
-            std::string got; char buf[4096]; ssize_t n;
-            while ((n = ::read(fds[0], buf, sizeof buf)) > 0) got.append(buf, size_t(n));
-            int status = 0;
-            ::waitpid(pid, &status, 0);
-            int code = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
-            size_t end = got.rfind('\n'), start = end == std::string::npos ? 0 : got.rfind('\n', end - 1);
-            std::string last = end == std::string::npos ? "" : got.substr(start == std::string::npos ? 0 : start + 1, end - (start == std::string::npos ? 0 : start + 1));
-            host::AppArgs next;
-            bool again = !last.empty() && last[0] != 'N';
-            if (again && last[0] == 'C') next.cue = last.substr(2);
-            std::fprintf(stderr, "run ended (%d)%s%s\n", code, again ? "; restarting " : "", again ? (next.cue.empty() ? "into the launcher" : next.cue.c_str()) : "");
-            std::fflush(nullptr);
-            if (const char* g = std::getenv("SF3_PS5_GEN"); again)   // the script's generation
-                setenv("SF3_PS5_GEN", std::to_string((g ? std::atoi(g) : 0) + 1).c_str(), 1);
-            if (again && !host::relaunch(next, why)) std::fprintf(stderr, "relaunch: %s\n", why.c_str());
-            std::_Exit(code);
-        }
-    }
-#endif
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_AUDIO) != 0) { std::fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
 
@@ -151,11 +130,10 @@ int main(int argc, char** argv) {
     launcher.launch = [&](const std::string& image) {
         if (!in_game) { g_launch_cue = image; return; }
         g_next.cue = image, g_relaunch = true;   // another disc: end this run, then relaunch
-        post_next();
         api.stop("Another disc was chosen in the menu");
         if (g_host) g_host->stop();
     };
-    launcher.quit = [&] { g_next = {}, g_relaunch = true; post_next(); if (g_host) g_host->stop(); };
+    launcher.quit = [&] { g_next = {}, g_relaunch = true; if (g_host) g_host->stop(); };
     runtime::RuntimeHost rt(api, launcher, settings.data_dir + "/states");
     rt.settings_changed(settings);
 #if defined(SF3_PS5_CONSOLE)
@@ -204,8 +182,7 @@ int main(int argc, char** argv) {
                 }
             } else if (st.op == "exit") {
                 g_relaunch = false;
-                post_next();
-                if (in_game) api.stop("the script ended the run"); else std::exit(0);
+                        if (in_game) api.stop("the script ended the run"); else std::exit(0);
             }
         }
         if (m.status_text() != last_status) {
@@ -248,11 +225,10 @@ int main(int argc, char** argv) {
     cfg.save = settings.data_dir + "/saves/backup.bin";   // one backup memory, shared by the scenarios
     cfg.settings = "-";
     cfg.out = settings.data_dir + "/logs";
+    sat_set_run_over_hook(run_over);
+    if (sf3_interp_fallback_install) sf3_interp_fallback_install();
     int code = saturn_main(cfg);
     g_host = nullptr;
-    std::fprintf(stderr, "run ended (%d)%s%s\n", code, g_relaunch ? "; restarting " : "", g_relaunch ? (g_next.cue.empty() ? "into the launcher" : g_next.cue.c_str()) : "");
-    std::fflush(nullptr);
-    if (g_relaunch && !host::relaunch(g_next, why))
-        std::fprintf(stderr, "relaunch: %s; exiting (start the app again from the home screen)\n", why.c_str());
+    run_over(code);   // only if saturn_main ever returns
     return code;
 }

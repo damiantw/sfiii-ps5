@@ -47,7 +47,7 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   fails, the app just exits and you start it again from the home screen. Tested on Linux with
   synthetic frames, and on PC with the game (`docs/pc-run.md`): boot, controls, sound, the
   menu, save/load states, fast-forward, switching discs and quitting to the launcher.
-  Not yet on the console. There, switching discs or quitting currently just exits the app.
+  Not yet on the console.
   Our build refuses saturn-recomp's optional `SATURN_VDP1_GPL` renderer, which would make it GPL.
 - the debug server, its client and the crash handler (`docs/devtools.md`)
 - a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
