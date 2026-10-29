@@ -21,7 +21,7 @@ PHDRS
 SECTIONS
 {
     . = 0;
-    .text : ALIGN(0x4000) { *(.text.unlikely .text.*_unlikely .text.unlikely.*) *(.text.startup .text.startup.*) *(.text.hot .text.hot.*) *(.text .text.* .gnu.linkonce.t.*) *(.init) *(.fini) } :code
+    .text : ALIGN(0x4000) { PROVIDE_HIDDEN(__sf3_text_start = .); *(.text.unlikely .text.*_unlikely .text.unlikely.*) *(.text.startup .text.startup.*) *(.text.hot .text.hot.*) *(.text .text.* .gnu.linkonce.t.*) *(.init) *(.fini) PROVIDE_HIDDEN(__sf3_text_end = .); } :code
 
     . = ALIGN(0x4000);
     .eh_frame_hdr : ALIGN(0x4000) { __eh_frame_hdr_start = .; *(.eh_frame_hdr) __eh_frame_hdr_end = .; } :rodata

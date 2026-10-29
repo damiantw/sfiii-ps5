@@ -3,8 +3,8 @@
 (step, pad, read, write, frame, vblank), so sf3test / sf3-story code drives a console run too.
 
   sf3dev.py ping | info | pause | run | step N | pad BUTTONS | read ADDR LEN | write ADDR HEX
-  sf3dev.py shot OUT.png | save PATH | load PATH | log [N]
-URL: --url or SF3DEV_URL (default tcp://192.168.1.70:9300); token: SF3DEV_TOKEN."""
+  sf3dev.py shot OUT.png | save PATH | load PATH | saved | loaded | log [N] | throw | detach | raw LINE
+URL: --url or SF3DEV_URL (default tcp://192.168.1.70:9200); token: SF3DEV_TOKEN."""
 import argparse, os, socket, struct, sys, zlib
 
 
@@ -30,7 +30,7 @@ class Frame:
 
 class Client:
     def __init__(self, url=None, token=None, timeout=30):
-        url = url or os.environ.get("SF3DEV_URL", "tcp://192.168.1.70:9300")
+        url = url or os.environ.get("SF3DEV_URL", "tcp://192.168.1.70:9200")
         host, port = url.removeprefix("tcp://").rsplit(":", 1)
         self.s = socket.create_connection((host, int(port)), timeout=timeout)
         self.s.setsockopt(socket.IPPROTO_TCP, socket.TCP_NODELAY, 1)
@@ -117,6 +117,20 @@ class Client:
             else: time.sleep(0.025)
         return False
 
+    def saved(self):
+        """The last save's status ("saved ..." from the server)."""
+        return self._ask("saved")
+
+    def loaded(self):
+        return self._ask("loaded")
+
+    def throw(self):
+        """A C++ exception thrown and caught on the emulation thread: "caught devtools throw"."""
+        return self._ask("throw")
+
+    def raw(self, line):
+        return self._ask(line)
+
     def log(self, n=100):
         k = int(self._ask(f"log {n}").split()[1])
         return [self._line() for _ in range(k)]
@@ -148,6 +162,11 @@ def main():
     elif a.cmd == "shot": c.pause(); c.frame().save_png(x[0]); c.run()
     elif a.cmd in ("save", "load"): getattr(c, a.cmd)(x[0])
     elif a.cmd == "log": print("\n".join(c.log(int(x[0]) if x else 100)))
+    elif a.cmd == "saved": print(c.saved())
+    elif a.cmd == "loaded": print(c.loaded())
+    elif a.cmd == "throw": print(c.throw())
+    elif a.cmd == "detach": pass
+    elif a.cmd == "raw": print(c.raw(" ".join(x)))
     else: sys.exit("unknown command " + a.cmd)
     c.close()
 

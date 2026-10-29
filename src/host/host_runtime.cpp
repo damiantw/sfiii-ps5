@@ -171,11 +171,36 @@ struct Call {                   // the stall report's "in host call ..."
 bool host_launch(SaturnConfig&) { return false; }   // the app's main runs the launcher itself
 bool host_open() { return g_host != nullptr; }
 
+#if defined(SF3_PS5_CONSOLE)
+extern "C" volatile int sf3_perf_wait;                                    // fault_klog.c (profiler)
+extern "C" void sf3_perf_frame(unsigned long work_ns, unsigned long frame_ns);
+#else
+static volatile int sf3_perf_wait;
+static void sf3_perf_frame(unsigned long, unsigned long) {}
+#endif
+namespace {
+using PerfClock = std::chrono::steady_clock;
+PerfClock::time_point g_perf_last_pace, g_perf_work_from;   // the frame's start; when the machine resumed
+}
 void host_present(const Frame& f) {
     Call c("present");
+    sf3_perf_wait = 1;   // the swapchain present blocks on the display
     g_host->present(f.px.data(), f.w, f.h, f.origin_x, f.native_w);
+    sf3_perf_wait = 0;
+    g_perf_work_from = PerfClock::now();
 }
-void host_pace(uint64_t now) { Call c("pace"); g_host->pace(now); }
+void host_pace(uint64_t now) {
+    Call c("pace");
+    auto t = PerfClock::now();
+    if (g_perf_last_pace.time_since_epoch().count() && g_perf_work_from.time_since_epoch().count())
+        sf3_perf_frame((unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(t - g_perf_work_from).count(),
+                       (unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(t - g_perf_last_pace).count());
+    g_perf_last_pace = t;
+    sf3_perf_wait = 1;
+    g_host->pace(now);
+    sf3_perf_wait = 0;
+    g_perf_work_from = PerfClock::now();
+}
 bool host_wants_frame() {
     if (!g_host) return false;
     bool want = g_host->wants_frame(sat_vblanks());

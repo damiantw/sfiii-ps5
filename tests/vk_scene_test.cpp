@@ -16,13 +16,17 @@ int main(int argc, char** argv) {
     std::string why;
     // presentation math (4K)
     Rect r = place(3840, 2160, 320, 224, Aspect::Classic4x3);
-    CHECK(r.h == 2016 && r.w == 2688 && r.x == 576 && r.y == 72);         // integer 9x, square pixels
+    CHECK(r.h == 2016 && r.w == 2688 - 8 && r.x == 576 + 8 && r.y == 72);  // integer 9x, square pixels; column 0 left out
+    CHECK(r.src_x0 == 1 && r.src_x1 == 320);
     r = place(3840, 2160, 352, 240, Aspect::Classic4x3);
-    CHECK(r.h == 2160 && r.w == 2880 && r.x == 480);                      // 9x = 2160
+    CHECK(r.h == 2160 && r.w == 2880 - 8 && r.x == 488);                    // 9x = 2160
     r = place(3840, 2160, 320, 224, Aspect::Wide16x9, 0);
-    CHECK(r.w == 2688);                                                    // no extra columns: stays 4:3
+    CHECK(r.w == 2680);                                                    // no extra columns: stays 4:3
     r = place(3840, 2160, 320, 224, Aspect::Wide16x9, 64);
     CHECK(r.w <= 3584 && r.w > 2688 && r.x == (3840 - r.w) / 2);           // capped at 16:9 of the box height
+    CHECK(r.src_x1 - r.src_x0 > 320 && r.src_x0 + r.src_x1 == 320 + 2 * 64);   // centred whole columns
+    r = place(3840, 2160, 320, 224, Aspect::Classic4x3, 64);
+    CHECK(r.w == 2680 && r.x == 584 && r.src_x0 == 65 && r.src_x1 == 384);               // 4:3 shows only the 4:3 window
 
     VkScene s;
     CHECK(s.init(why));
@@ -56,8 +60,9 @@ int main(int argc, char** argv) {
         auto at = [&](int x, int y) { return &sc[(size_t(y) * W + x) * 4]; };
         CHECK(at(0, 0)[0] == 0 && at(0, 0)[3] == 255 && at(W - 1, H - 1)[0] == 0);     // pillarbox is black
         int bad = 0;
-        for (int sy = 0; sy < h; ++sy) for (int sx = 0; sx < w; ++sx) {
-            int x = pr.x + (2 * sx + 1) * pr.w / (2 * w), y = pr.y + (2 * sy + 1) * pr.h / (2 * h);   // texel centres
+        const int cols = pr.src_x1 - pr.src_x0;            // column 0 is left out (back-screen stripe)
+        for (int sy = 0; sy < h; ++sy) for (int sx = pr.src_x0; sx < pr.src_x1; ++sx) {
+            int x = pr.x + (2 * (sx - pr.src_x0) + 1) * pr.w / (2 * cols), y = pr.y + (2 * sy + 1) * pr.h / (2 * h);   // texel centres
             uint32_t v = scene[1 + sy * w + sx] ^ tex[0];
             const uint8_t* q = at(x, y);
             bad += q[0] != (v >> 16 & 255) || q[1] != (v >> 8 & 255) || q[2] != (v & 255);

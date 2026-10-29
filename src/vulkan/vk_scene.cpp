@@ -382,7 +382,8 @@ bool VkScene::present_to(VkImage dst, int w, int h, VkImageLayout old_layout, Vk
     if (r.w > 0 && r.h > 0) {
         VkImageBlit bl{};
         bl.srcSubresource = bl.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        bl.srcOffsets[1] = {t.w, t.h, 1};
+        bl.srcOffsets[0] = {r.src_x1 > r.src_x0 ? std::max(r.src_x0, 0) : 0, 0, 0};
+        bl.srcOffsets[1] = {r.src_x1 > r.src_x0 ? std::min(r.src_x1, t.w) : t.w, t.h, 1};
         bl.dstOffsets[0] = {std::max(r.x, 0), std::max(r.y, 0), 0};
         bl.dstOffsets[1] = {std::min(r.x + r.w, w), std::min(r.y + r.h, h), 1};
         vkCmdBlitImage(cmd_, t.img, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, dst, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &bl,
