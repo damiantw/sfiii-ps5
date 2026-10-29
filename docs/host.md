@@ -48,8 +48,9 @@ disc always starts in a fresh process instead of being torn down and rebuilt in 
 - Without `--cue`, the app starts in the launcher. Picking a disc there starts the runtime in
   the same process.
 - **Quit to launcher** (or another disc from the in-game launcher page) calls `state_stop`.
-  `saturn_main` then returns after the normal end of a run, which writes the backup memory.
-  After that the app relaunches itself, with no arguments or with `--cue <image>`.
+  The runtime ends the run, writes the backup memory and states, then calls the run-over hook
+  (`sat_set_run_over_hook`) before it ends the process with `_Exit`. `saturn_main` does not
+  return. From the hook the app relaunches itself, with no arguments or with `--cue <image>`.
 - On PC that's `execv` of `/proc/self/exe` (tested in `host_test`). On PS5 (`SF3_PS5_CONSOLE`,
   `SF3_PS5_TITLE_ID`) it's `sceSystemServiceLaunchApp(own title ID, argv)` for the foreground
   user, followed by `_Exit(0)`.
