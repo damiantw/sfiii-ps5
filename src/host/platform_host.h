@@ -11,7 +11,7 @@
 // Runs on the machine thread (host_present, host_pace, host_pad and host_audio_push all come from
 // it), or on the main thread in the launcher. MIT, see LICENSE.
 #pragma once
-#include "audio_sdl2.h"
+#include "audio_out.h"
 #include "pacer.h"
 #include "menu/menu.h"
 #include "menu/pad.h"
