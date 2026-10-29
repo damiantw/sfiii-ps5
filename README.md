@@ -41,7 +41,8 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   It shows the game field over Vulkan, placed 4:3 or 16:9, with the menu drawn over it. It paces
   at 1x/2x/3x and holds R2 to fast-forward. The DualSense works as a Saturn pad, laid out as in
   sfiii-native: Square A, Cross B, Circle C, Triangle X, L2 Y, R2 Z, L1 L, R1 R, Options START.
-  With hold-to-fast-forward on, Z moves to R3. Sound goes through SDL2 at 48 kHz.
+  With hold-to-fast-forward on, Z moves to R3. Sound plays at 48 kHz, through SDL2 on PC and
+  `libSceAudioOut` on the console. On the console the pad is read with `libScePad`.
   Launching a disc or quitting to the launcher restarts the app (one disc per process).
   On the PS5 this uses `sceSystemServiceLaunchApp` and has not been tried on the console. If it
   fails, the app just exits and you start it again from the home screen. Tested on Linux with
@@ -50,9 +51,9 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   Not yet on the console.
   Our build refuses saturn-recomp's optional `SATURN_VDP1_GPL` renderer, which would make it GPL.
 - the debug server, its client and the crash handler (`docs/devtools.md`)
-- a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
+- the clean-room MIT title platform (`docs/platform.md`) and the console title build (below)
 
-Still to come: the Vulkan backend and the packaging scripts.
+Still to come: the first run of the full app on the console.
 
 ### Supported discs
 Redump dumps, as BIN/CUE or CHD: Scenario 1 (USA), Scenario 2 (Japan, 1.003 and Rev A 2.000),
@@ -81,6 +82,18 @@ rebuild it. Nothing made from a disc ships with the app. See [docs/pc-run.md](do
 ### Settings
 They are stored in `/data/shiningforceiii/settings.txt`: speed, fast-forward hold, 4:3/16:9,
 sharp pixels, menu size, download opt-in, add-ons, and the patch mode.
+
+## Console title
+
+`tools/ps5/build-title.sh` builds the app as a homebrew folder title,
+`build/ps5-title/PPSA93303/` (title ID: `docs/title-id.md`). It contains `eboot.bin`,
+`sce_module/libc.prx`, `sce_sys/param.json` and `profiles/`, which holds sfiii-native's revision
+profiles, read at `/app0/profiles`. It is sfiii-native's generic build, so it has no code or data
+made from a disc: each disc's game code is built on the console at its first launch (see
+[First launch of a disc](#first-launch-of-a-disc)). It needs the same tools as the test title
+below, plus `SATURN_RUNTIME` (saturn-recomp's `runtime/` with sfiii-native's
+`tools/runtime-diagnostics.patch`). `TITLE_ID=` and `OUT=` override the defaults. It builds and
+links, but has not run on the console yet.
 
 ## Console test title (swapchain)
 

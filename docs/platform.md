@@ -14,10 +14,16 @@ source was opened while writing it.
 | startup and C++ `new`/`delete` | `ps5/platform/crt/` | `app_crt.cpp`, `app_cpp_runtime.cpp` | PASS, 602 frames at 60.1 fps |
 | linker script | `ps5/platform/ps5-title.ld`, `title-exports.map` | `ps5-pie-unwind.ld`, `app-symbols.map` | PASS, 602 frames at 60.1 fps |
 | companion module | `ps5/platform/companion/libc_companion.c` | generated `libc.prx` | **not yet run**: the console stopped launching test titles before it could be tried |
+| locale gaps (`*_l`, `mbsnrtowcs`, `wcsnrtombs`, `catopen`), `__cxa_thread_atexit_impl` | `ps5/platform/title/locale_gaps.c`, `thread_stack.c` | `libps5platform.a` (libc++'s locale and `thread_local` needs) | links; full app not yet run |
+| `major`/`minor` macro guard | `ps5/platform/compat_pre.h` (force-included) | | compile-time only |
+| code-cache loader (RW map, relocate, `sceKernelMprotect` RX, 16 KiB pages) | `src/ps5/loader_ps5.cpp` | sfiii-native's `loader_posix.cpp` | the same sequence ran in a payload (fw 13.590.001); not yet in a title |
+| pad and sound | `src/menu/pad_ps5.cpp`, `src/host/audio_ps5.cpp`, `src/ps5/sce.h` | the PS5 SDL2 port | decode/resampler tested on PC (`ps5_backends_test`); not yet on the console |
 | Agc link stubs | `ps5/platform/agc_stubs.c` | PS5_Vulkan canary stubs | links (link-time only) |
 
 `tools/ps5/build-test-title.sh` builds the swapchain test title from these
-pieces.
+pieces, and `tools/ps5/build-title.sh` builds the app (CMake with `tools/ps5/prospero.cmake`
+and `tools/ps5/saturn_ps5.cmake` on sfiii-native's generic build). The libc gaps follow the
+functions' FreeBSD man pages and the declarations in the SDK's public headers.
 
 ## What was referenced
 

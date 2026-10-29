@@ -11,12 +11,16 @@
 #include "menu/jobs.h"
 #include "prepare/prepare.h"
 #include "patch/fetch_sce.h"
+#if defined(SF3_PS5_CONSOLE)
+#include "menu/pad_ps5.h"
+#else
 #include "menu/pad_sdl2.h"
+#include <SDL.h>
+#endif
 #include "../vulkan/display.h"
 #include "imgui.h"
 #include "saturn.h"
 #include "host/host.h"
-#include <SDL.h>
 #include <cstdio>
 #include <cstdlib>
 #include <filesystem>
@@ -46,6 +50,12 @@ void sf3_interp_fallback_install() __attribute__((weak));
 bool sf3_x64_install_set(const std::string& dir, std::string& why) __attribute__((weak));
 
 namespace {
+// the PC window has no vsync wait; the console's swapchain present blocks on vsync
+void pc_frame_wait() {
+#if !defined(SF3_PS5_CONSOLE)
+    SDL_Delay(16);
+#endif
+}
 host::PlatformHost* g_host = nullptr;
 host::AudioOut* g_audio = nullptr;
 bool g_have_audio = false;
@@ -99,8 +109,10 @@ void host_audio_report() {
 int main(int argc, char** argv) {
     host::AppArgs args = host::AppArgs::parse(argc, argv);
     std::string why;
+#if !defined(SF3_PS5_CONSOLE)
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_AUDIO) != 0) { std::fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
+#endif
 
     menu::Settings settings;
     const char* dd = std::getenv("SF3_PS5_DATA");
@@ -158,8 +170,13 @@ int main(int argc, char** argv) {
     menu::setup_imgui(ImGui::GetIO());
     menu::Jobs jobs;
     menu::Menu m(rt, settings, jobs, settings_path);
+#if defined(SF3_PS5_CONSOLE)
+    menu::ScePad pad;
+    std::function<menu::PadState()> read = [&] { return pad.read(); };
+#else
     menu::SdlPad pad;
     std::function<menu::PadState()> read = [&] { SDL_GameControllerUpdate(); return pad.read(); };
+#endif
     bool preparing = false;   // a disc's first launch: the script's clock waits for the game
 #if !defined(SF3_PS5_CONSOLE)
     // PC test driver (script.h)
@@ -220,7 +237,7 @@ int main(int argc, char** argv) {
             if (!ph.ui_frame()) { std::fprintf(stderr, "screen: %s\n", ph.error().c_str()); return 1; }
             if (offscreen) continue;
 #if !defined(SF3_PS5_CONSOLE)
-            SDL_Delay(16);   // the PC window has no vsync wait
+            pc_frame_wait();
 #endif
         }
         args.cue = g_launch_cue;
@@ -256,7 +273,7 @@ int main(int argc, char** argv) {
             while (jobs.busy()) {
                 if (!ph.ui_frame()) { std::fprintf(stderr, "screen: %s\n", ph.error().c_str()); return 1; }
 #if !defined(SF3_PS5_CONSOLE)
-                if (!offscreen) SDL_Delay(16);
+                if (!offscreen) pc_frame_wait();
 #endif
             }
             jobs.join();
@@ -265,7 +282,7 @@ int main(int argc, char** argv) {
                 std::fprintf(stderr, "prepare: %s\n", pr.why.c_str());
                 for (int i = 0; i < (offscreen ? 1 : 600) && ph.ui_frame(); i++) {
 #if !defined(SF3_PS5_CONSOLE)
-                    if (!offscreen) SDL_Delay(16);
+                    if (!offscreen) pc_frame_wait();
 #endif
                 }
                 if (!offscreen) { g_next = {}, g_relaunch = true; run_over(1); }   // back to the launcher

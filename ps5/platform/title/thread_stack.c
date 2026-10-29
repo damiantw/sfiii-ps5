@@ -18,3 +18,29 @@ int __wrap_pthread_create(pthread_t* t, const pthread_attr_t* attr, void* (*fn)(
         pthread_attr_setstacksize((pthread_attr_t*)attr, SF3_STACK);
     return __real_pthread_create(t, attr, fn, arg);
 }
+
+// thread_local destructors (libc++abi's __cxa_thread_atexit), which the console's libc does not
+// export: a per-thread list run by a pthread key's destructor when the thread ends.
+#include <stdlib.h>
+struct sf3_tls_dtor { void (*fn)(void*); void* obj; struct sf3_tls_dtor* next; };
+static pthread_key_t sf3_tls_key;
+static pthread_once_t sf3_tls_once = PTHREAD_ONCE_INIT;
+static void sf3_tls_run(void* p) {
+    struct sf3_tls_dtor* d = (struct sf3_tls_dtor*)p;
+    while (d) {   // last registered first; a destructor may register more
+        pthread_setspecific(sf3_tls_key, d->next);
+        d->fn(d->obj);
+        free(d);
+        d = (struct sf3_tls_dtor*)pthread_getspecific(sf3_tls_key);
+    }
+}
+static void sf3_tls_init(void) { pthread_key_create(&sf3_tls_key, sf3_tls_run); }
+int __cxa_thread_atexit_impl(void (*fn)(void*), void* obj, void* dso) {
+    (void)dso;
+    pthread_once(&sf3_tls_once, sf3_tls_init);
+    struct sf3_tls_dtor* d = (struct sf3_tls_dtor*)malloc(sizeof *d);
+    if (!d) return -1;
+    d->fn = fn, d->obj = obj, d->next = (struct sf3_tls_dtor*)pthread_getspecific(sf3_tls_key);
+    pthread_setspecific(sf3_tls_key, d);
+    return 0;
+}

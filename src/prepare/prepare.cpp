@@ -30,7 +30,7 @@ std::string stamp(const disc::Disc& d) {
         std::error_code ec;
         auto size = fs::file_size(p, ec);
         auto t = fs::last_write_time(p, ec).time_since_epoch().count();
-        s += fs::absolute(p).string() + "|" + std::to_string(size) + "|" + std::to_string(t) + ";";
+        s += fs::absolute(p).string() + "|" + std::to_string((unsigned long long)size) + "|" + std::to_string((long long)t) + ";";
     }
     return s;
 }

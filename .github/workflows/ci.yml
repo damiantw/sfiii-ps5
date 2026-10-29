@@ -24,6 +24,8 @@ jobs:
         run: python3 tests/patch_quirks.py external/sfiii-native build
       - name: Menu runtime glue (fake runtime)
         run: build/runtime_host_test
+      - name: Console pad decode and audio resampler
+        run: build/ps5_backends_test
       - name: Runtime binding compiles against the pinned, patched saturn-recomp
         run: |
           rt=$(python3 -c "import json;d=json.load(open('external/sfiii-native/dependencies.json'))['runtime'];print(d['url'],d['commit'])")
