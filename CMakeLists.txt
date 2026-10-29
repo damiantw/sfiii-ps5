@@ -14,3 +14,16 @@ if(SF3_PS5_DEVTOOLS)
     target_link_libraries(test_debug_server sf3ps5_devtools)
   endif()
 endif()
+
+# Vulkan scene pass (replaces sfiii-native's SDL_GPU render state). Desktop Vulkan for the tests;
+# the PS5 build links PS5_Vulkan's RADV instead (see docs/vulkan.md).
+find_package(Vulkan QUIET)
+if(Vulkan_FOUND)
+  add_library(sf3ps5_vulkan STATIC src/vulkan/vk_scene.cpp)
+  target_link_libraries(sf3ps5_vulkan PUBLIC Vulkan::Vulkan)
+  target_compile_options(sf3ps5_vulkan PRIVATE -Wno-missing-field-initializers)
+  if(NOT CMAKE_CROSSCOMPILING)
+    add_executable(vk_scene_test tests/vk_scene_test.cpp)
+    target_link_libraries(vk_scene_test sf3ps5_vulkan)
+  endif()
+endif()
