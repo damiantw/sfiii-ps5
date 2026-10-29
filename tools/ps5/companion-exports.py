@@ -63,7 +63,7 @@ assert nid("Need_sceLibc") == "P330P3dFF68"  # the published NID hash
 
 def gen(rows, out):
     t = ["\t.p2align 4\nsf3_stub:\n\tmovl %eax,sf3_last_row(%rip)\n\tlock incl sf3_calls(%rip)\n\txorl %eax,%eax\n\tret\n",
-         "\t.p2align 3\n\t.type sf3_init,@function\nsf3_init:\n\tret\n"]
+         "\t.p2align 3\n\t.type sf3_init,@function\nsf3_init:\n\txorl %eax,%eax\n\tret\n"]
     d = ["\t.p2align 2\nsf3_last_row:\n\t.long -1\nsf3_calls:\n\t.long 0\n"]; tl = []
     for i, (n, lib, bind, kind, size) in rows:
         lab = f"sf3_e{i}"
@@ -144,6 +144,8 @@ def publish(rows, so, elf, out):
     keep = lambda t: [(k, v) for k, v in ents if k == t]
     imports = []
     for j, (k, v) in enumerate(ents):  # NEEDED / module / library triples, in order
+        if k == 0x61000045:  # needed module version x.0 -> 1.1, as the system modules record it
+            v |= 0x0101 << 32
         if k in (1, 0x61000045, 0x61000049, 0x61000019): imports.append((k, v))
     new = (imports + keep(0xE) + keep(0x61000043) + keep(0x61000011) + keep(0x61000041) +
            keep(0x61000047)[:1] + keep(0x61000017)[:1] + extra +
@@ -151,11 +153,11 @@ def publish(rows, so, elf, out):
             (0x17, at.get("jmprel", at["rela"])), (2, len(jmprel)), (3, get(3)), (0x14, 7),
             (6, at["sym"]), (0xB, 24), (5, at["str"]), (0xA, len(strtab)), (4, at["hash"]),
             (0x19, 0), (0x1B, 0), (0x1A, 0), (0x1C, 0),
-            (0xC, syms["sf3_init"]), (0xD, syms["sf3_init"]),
+            (0xC, syms.get("sf3_companion_init", syms["sf3_init"])), (0xD, syms["sf3_init"]),
             (0x6100003F, len(symtab)), (0x6100003D, len(hashtab))])
     new += [(0, 0)] * 8
     put("dyn", b"".join(struct.pack("<QQ", k, v) for k, v in new), 8)
-    blob.extend(b"\0" * (-len(blob) % 16))
+    blob.extend(b"\0" * (-(len(blob) - seg[6]) % 16))  # keep later offsets 16-aligned
     old_end = seg[3] + seg[6]; grow = len(blob) - seg[6]
     if grow % 16: raise SystemExit("unaligned growth")
     for p in ph:
@@ -173,7 +175,18 @@ def publish(rows, so, elf, out):
         elif p[3] >= old_end: struct.pack_into("<Q", d, p[0] + 8, p[3] + grow)
         if p[1] == 7 and p[6] > p[7]: raise SystemExit("TLS segment with bad filesz; expected .tdata")
     if struct.unpack_from("<Q", d, 40)[0]: raise SystemExit("unexpected section headers")
-    open(out, "wb").write(bytes(d[:seg[3]] + blob + d[old_end:]))
+    d = bytearray(d[:seg[3]] + blob + d[old_end:])
+    # The converter writes the version segment (0x6FFFFF01) in application form: "app_crt.o:" and
+    # one entry per dependency. A module's holds a single entry naming the module itself.
+    for p in phdrs(d):
+        if p[1] != 0x6FFFFF01: continue
+        old = bytes(d[p[3]:p[3] + p[6]]); words = old[old.index(b":") + 1:old.index(b":") + 17]
+        name = strtab[get(0x61000043) & 0xFFFFFFFF:strtab.index(b"\0", get(0x61000043) & 0xFFFFFFFF)]
+        body = b"\x08" + name + b":" + words
+        new = struct.pack("<HH", 0, len(body)) + body
+        d[p[3]:p[3] + p[6]] = new + b"\0" * (p[6] - len(new))
+        struct.pack_into("<QQQ", d, p[0] + 32, len(new), (len(new) + 15) & ~15, 0x10)
+    open(out, "wb").write(bytes(d))
 
 def check(rows, elf):
     d = open(elf, "rb").read(); ph, seg, dyn, ents = dynlib(d)

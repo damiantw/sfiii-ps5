@@ -115,12 +115,12 @@ row in `sf3_last_row` and returns 0. The dynlib data is rebuilt in the layout sy
 the thread-local exports sit in the RELRO segment. `SF3_COMPANION_EXPORTS=none|notls|full` (default
 full) selects a variant for bisecting.
 
-Status: it builds and links. On the console, earlier builds stopped at `libc.prx`
-(`PRX_SCE_MODULE_LOAD_ERROR` inside libSceLibcInternal, with a companion that exported nothing).
-With the export table, all three variants still stop the same way: libSceSysmodule fails to load
-`/app0/sce_module/libc.prx` ("Lack of a .prx file in /app0/sce_module"), so the module is rejected
-before its exports are used. An earlier layout (TLS outside every segment) took the whole console
-down; the current layout does not.
+Status: the companion loads on the console and the title reaches the launcher. Two things were
+required: the module's DT_INIT must return 0 (a bare `ret` left eax set and libSceLibcInternal
+rejected the module with `PRX_SCE_MODULE_LOAD_ERROR`), and the needed-module entries carry version
+1.1 with export library ids following the import libraries, as system modules do. The companion no
+longer imports libSceLibcInternal. Discs are not reachable yet: the title's sandbox cannot open
+`/data` ("Operation not permitted"), so the Discs tab finds no images (see the disc section).
 
 ## Console test title (swapchain)
 
@@ -132,8 +132,7 @@ piece replaces and how it was written. It needs `VULKAN_INCLUDE`,
 `PS5_NATIVE_TOOL`. Copy the folder to `/data/homebrew/` and launch it. The test
 writes `/data/sfiii-ps5-test/swapchain.txt` (create that folder first).
 Status: the startup code, platform shim and linker script pass on the console
-(3840x2160, 60 fps). The companion `libc.prx` has not been run on the console
-yet, and the title crashes on exit.
+(3840x2160, 60 fps). The title crashes on exit.
 
 ## Build (Linux: tools and tests)
 ```sh

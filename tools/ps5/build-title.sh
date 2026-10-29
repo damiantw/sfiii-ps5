@@ -38,7 +38,7 @@ $S/bin/prospero-clang -c $W/obj/exports.S -o $W/obj/exports.o
 # thread-local data goes in the RELRO tables segment, as in system modules
 sed -e "s/^    dynamic PT_DYNAMIC FLAGS(6);/&\n    tls PT_TLS FLAGS(4);/" -e "/^    .tdata : /d" \
   -e "s/^    .got : {/    .tdata : { *(.tdata .tdata.*) } :tables :tls\n&/" $P/ps5-title.ld >$W/obj/companion.ld
-$S/bin/prospero-lld --shared -soname libc.prx -T $W/obj/companion.ld --version-script $P/title-exports.map -o $W/companion.so $W/obj/companion.o $W/obj/exports.o -L$S/target/lib -lkernel -lSceLibcInternal -lSceSysmodule
+$S/bin/prospero-lld --shared -soname libc.prx -T $W/obj/companion.ld --version-script $P/title-exports.map -o $W/companion.so $W/obj/companion.o $W/obj/exports.o -L$S/target/lib -lkernel -lSceSysmodule
 $T link --in $W/companion.so --out $W/companion.elf "${link[@]}" --file-name libc.prx >/dev/null
 # the converter writes an application (0xFE10); rtld only loads a module (0xFE18 + module param)
 python3 "$R/tools/ps5/prx-fixup.py" $W/companion.elf $W/companion.elf
