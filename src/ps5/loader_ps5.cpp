@@ -8,6 +8,7 @@
 #include <sys/mman.h>
 
 extern "C" int sceKernelMprotect(const void* addr, size_t len, int prot);
+extern "C" volatile uintptr_t sf3_fault_gen_base, sf3_fault_gen_size;   // fault_klog.c
 
 namespace sf3::gen {
 
@@ -32,6 +33,7 @@ bool load_cache(const Cache& c, const ServiceTable& svc, LoadedCode& out, std::s
         return why = "mprotect RX failed", false;
     }
     out.base = m, out.size = size, out.funcs.clear();
+    sf3_fault_gen_base = reinterpret_cast<uintptr_t>(m), sf3_fault_gen_size = size;
     for (auto& e : c.funcs) out.funcs.push_back({e.addr, reinterpret_cast<SH2Func>(b + e.code_off)});
     return true;
 }

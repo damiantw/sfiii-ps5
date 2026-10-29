@@ -185,6 +185,18 @@ MIT (see LICENSE). Third-party code must be MIT/BSD-compatible. There is no GPL/
 
 A PS5 title may not use libc `opendir`/`realpath`/`getcwd` (EPERM). The disc scan lists directories with `open(O_DIRECTORY)` + `getdents`, and MIT shims give `getcwd` = `/app0` and a lexical `realpath`. Put discs under `/data/shiningforceiii/` (any subfolder layout); launch the title from the home screen.
 
+### PS5: title runtime notes
+
+- `fstatat`/`openat`/`unlinkat`/`fdopendir` exist only in libkernel_sys, which a title cannot import; left unresolved they became calls through NULL (the crash on starting any disc). MIT shims (`ps5/platform/title/path_shims.c`, `dir_shims.c`) cover them, and first-launch prepare removes folders with its own getdents walk.
+- The C heap (`ps5/platform/title/heap.c`, linked with `--wrap=malloc` etc.) comes from direct memory; the system malloc refused tens-of-MB blocks. Disc files are hashed and extracted in chunks.
+- A fault handler (`fault_klog.c`) writes signal, registers and stack to the kernel log.
+- The dev-build debug server listens on port 9200 by default: a title's bind on 9300/9301 fails with EACCES.
+- Japanese Scenario 2/3 and Premium Disc images must be translated (v25.1 patch, Translate page) before they play; untranslated images report "not a supported revision".
+
 ### PS5: controllers
 
 The launcher reads every logged-in user's controller and the remote-control port, so a Remote Play pad drives the menu too. The launcher's last line shows the pad state. Dev builds can also be driven without a pad (docs/devtools.md: `launch=` in /data/sfiii/devtools.enable).
+
+- Disc switch / quit to launcher relaunches via `sceSystemServiceLoadExec("/app0/eboot.bin")`; a running title cannot `LaunchApp` itself (0x8094000F).
+- JIT unwind info is registered per FDE (`__register_frame(fde)`); the SDK libunwind rejects a CIE pointer.
+- Stale `cache/work-*` folders are swept at prepare time.

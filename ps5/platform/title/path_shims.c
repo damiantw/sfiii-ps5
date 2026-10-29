@@ -67,3 +67,28 @@ char* realpath(const char* path, char* resolved) {
     memcpy(resolved, out, len + 1);
     return resolved;
 }
+
+// The *at calls are only in libkernel_sys, which a title cannot import: an undefined reference
+// to them resolves to a null call (std::filesystem::remove_all, RADV's disk cache). These cover
+// AT_FDCWD and absolute paths with the plain calls and refuse a real directory fd.
+#include <fcntl.h>
+#include <stdarg.h>
+#include <unistd.h>
+static int at_ok(int dirfd, const char* path) { return dirfd == AT_FDCWD || (path && path[0] == '/'); }
+
+int fstatat(int dirfd, const char* path, struct stat* st, int flags) {
+    if (!at_ok(dirfd, path)) { errno = ENOSYS; return -1; }
+    return (flags & AT_SYMLINK_NOFOLLOW) ? lstat(path, st) : stat(path, st);
+}
+
+int openat(int dirfd, const char* path, int flags, ...) {
+    if (!at_ok(dirfd, path)) { errno = ENOSYS; return -1; }
+    int mode = 0;
+    if (flags & O_CREAT) { va_list a; va_start(a, flags); mode = va_arg(a, int); va_end(a); }
+    return open(path, flags, mode);
+}
+
+int unlinkat(int dirfd, const char* path, int flags) {
+    if (!at_ok(dirfd, path)) { errno = ENOSYS; return -1; }
+    return (flags & AT_REMOVEDIR) ? rmdir(path) : unlink(path);
+}

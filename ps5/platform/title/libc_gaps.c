@@ -32,9 +32,6 @@ int __xuname(int namesize, void* namebuf) {
     return 0;
 }
 
-// The disk cache's directory walk: no shader disk cache on the console (open fails first).
-int dirfd(DIR* d) { (void)d; errno = ENOTSUP; return -1; }
-
 typedef struct { const char* dli_fname; void* dli_fbase; const char* dli_sname; void* dli_saddr; } sf3_dl_info;
 int dladdr(const void* addr, sf3_dl_info* info) { (void)addr; (void)info; return 0; }   // 0: not found
 

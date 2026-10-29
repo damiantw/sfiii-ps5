@@ -2,6 +2,7 @@
 // main.cpp): the launcher menu without a game, or one disc per process (relaunch.h).
 // Compiled against a patched runtime checkout (SF3_PS5_RUNTIME_DIR); the console build links it
 // with the runtime and the generated code. MIT, see LICENSE.
+#include <sys/stat.h>
 #include "platform_host.h"
 #include "relaunch.h"
 #if !defined(SF3_PS5_CONSOLE)
@@ -92,7 +93,8 @@ template <class Rt> void launcher_dev_start(sf3::menu::Menu& m, Rt&) {
     bool ok = devtools_start(c, h);
     char b[96];
     if (!c.enabled) std::snprintf(b, sizeof b, " | devtools off (enable file errno %d)", read_errno);
-    else std::snprintf(b, sizeof b, ok ? " | devtools on :%d" : " | devtools :%d failed, errno %d", c.port, errno);
+    else if (ok) std::snprintf(b, sizeof b, " | devtools on :%d", c.port);
+    else std::snprintf(b, sizeof b, " | devtools :%d failed, errno %d", c.port, errno);
     g_dev_status = b;
     // launch=CUE: start that disc without input (automated runs when no listener is allowed)
     if (FILE* f = std::fopen("/data/sfiii/devtools.enable", "r")) {
@@ -188,7 +190,16 @@ void host_audio_report() {
     std::fprintf(stderr, "audio: 48 kHz, %d underruns, %d chunks dropped\n", s.underruns, s.dropped);
 }
 
+#if defined(SF3_PS5_CONSOLE)
+extern "C" void sf3_fault_install(void);
+extern "C" void sf3_sample_start(void);
+#endif
 int main(int argc, char** argv) {
+#if defined(SF3_PS5_CONSOLE)
+    sf3_fault_install();
+    mkdir("/data/sfiii", 0777);   // a title has no console: keep stderr in a file the player (or FTP) can read
+    if (std::freopen("/data/sfiii/stderr.txt", "w", stderr)) std::setvbuf(stderr, nullptr, _IONBF, 0);
+#endif
     host::AppArgs args = host::AppArgs::parse(argc, argv);
     std::string why;
 #if !defined(SF3_PS5_CONSOLE)
@@ -404,6 +415,9 @@ int main(int argc, char** argv) {
         return 1;
     }
     sat_set_run_over_hook(run_over);
+#if defined(SF3_PS5_CONSOLE)
+    sf3_sample_start();   // dev runs: /data/sfiii/sample.enable
+#endif
     if (sf3_interp_fallback_install) sf3_interp_fallback_install();
     int code = saturn_main(cfg);
     g_host = nullptr;

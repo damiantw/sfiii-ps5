@@ -8,7 +8,7 @@ Modelled on the PS5 Shipwright dev-tools branch (debug server + crash handler, d
 - `SF3_PS5_DEVTOOLS=ON` builds the server. Release and store builds keep it **OFF**, so
   the code isn't compiled in at all. `tools/check-release.sh ELF` refuses an ELF carrying `devtools_` symbols.
 - Even in a dev build nothing listens unless `/data/sfiii/devtools.enable` exists. It can hold these lines:
-  `port=9300`, `token=SECRET` (clients must `auth SECRET` first), and `bind=0.0.0.0`.
+  `port=9200` (default; a title is refused other ports such as 9300 and 9301 with EACCES), `token=SECRET` (clients must `auth SECRET` first), and `bind=0.0.0.0`.
 - The crash handler (`src/devtools/crash_handler.cpp`) is in every build. It only writes
   `/data/sfiii/crash/crash-<time>.txt` (signal, fault address, return addresses) and has no network code.
   Symbolize these files on the box.
@@ -56,5 +56,5 @@ deterministic as `--agent`: the same presses at the same VBlanks give the same r
 
 Build with `SF3_PS5_DEVTOOLS=ON tools/ps5/build-title.sh`. The launcher reads `/data/sfiii/devtools.enable` too:
 
-- `port=N`: the launcher listens for the same protocol, and `pad [N.]BUTTON+...` holds menu buttons (UP DOWN LEFT RIGHT CROSS CIRCLE SQUARE TRIANGLE L1 R1 OPTIONS TOUCHPAD) for N frames. A title's bind is refused with EACCES on current firmware, and the launcher's last line shows the result.
+- `port=N`: the launcher listens for the same protocol, and `pad [N.]BUTTON+...` holds menu buttons (UP DOWN LEFT RIGHT CROSS CIRCLE SQUARE TRIANGLE L1 R1 OPTIONS TOUCHPAD) for N frames. Use port 9200: a title's bind elsewhere (9300, 9301) is refused with EACCES. The launcher's last line shows the result.
 - `launch=/data/shiningforceiii/DIR/NAME.cue`: start that disc right away with no input, for automated runs.

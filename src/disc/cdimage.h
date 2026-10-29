@@ -8,6 +8,7 @@
 #include <memory>
 #include <stdexcept>
 #include <string>
+#include <functional>
 #include <vector>
 
 namespace sf3::disc {
@@ -85,9 +86,13 @@ public:
 
     std::vector<uint8_t> read_sectors(uint32_t lba, uint32_t count) const;
     std::vector<uint8_t> read_file(const Record& r) const;
+    // Calls `chunk` with the file's bytes in order, a few hundred KiB at a time, without holding the
+    // whole file (the PS5 system heap refuses a second block of tens of MB).
+    void read_file_chunks(const Record& r, const std::function<void(const uint8_t*, size_t)>& chunk) const;
     std::vector<const Track*> audio_tracks() const;
 private:
     void init();
+    void read_sectors_into(uint32_t lba, uint32_t count, uint8_t* out) const;
     static Record record(const uint8_t* buf, size_t len, size_t off);
     std::vector<Record> list_root() const;
 };

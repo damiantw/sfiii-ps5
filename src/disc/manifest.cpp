@@ -43,13 +43,17 @@ Probe probe(const Disc& d, const std::string& extract_dir, const std::function<v
     std::map<std::string, std::string> files;   // path -> {"sha1":..,"size":..} (sorted keys)
     for (auto& r : d.files) {
         if (r.is_dir || r.is_cdda()) continue;
-        auto data = d.read_file(r);
-        files["/" + r.name] = "{\"sha1\":" + jstr(sha1_of(data)) + ",\"size\":" + std::to_string(data.size()) + "}";
-        if (!extract_dir.empty() && is_bin(r.name)) {
-            std::ofstream f(path_join(extract_dir, r.name), std::ios::binary);
-            f.write(reinterpret_cast<const char*>(data.data()), std::streamsize(data.size()));
-            if (!f) throw DiscError("cannot write " + path_join(extract_dir, r.name));
-        }
+        // Streamed: a whole file at once (some are ~30 MB) is more than the PS5 heap gives in one block.
+        Sha1 h;
+        std::ofstream f;
+        bool extract = !extract_dir.empty() && is_bin(r.name);
+        if (extract) f.open(path_join(extract_dir, r.name), std::ios::binary);
+        d.read_file_chunks(r, [&](const uint8_t* p, size_t n) {
+            h.update(p, n);
+            if (extract) f.write(reinterpret_cast<const char*>(p), std::streamsize(n));
+        });
+        if (extract && !f) throw DiscError("cannot write " + path_join(extract_dir, r.name));
+        files["/" + r.name] = "{\"sha1\":" + jstr(h.hex()) + ",\"size\":" + std::to_string(r.size) + "}";
         done += r.size;
         if (progress) progress(done, total);
     }
