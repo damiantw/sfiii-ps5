@@ -1,5 +1,6 @@
 // sf3disc: identify one image, or scan a folder for the four discs. A Linux test front end for
 // src/disc (the console calls the same code from the menu). MIT, see LICENSE.
+#include "../disc/manifest.h"
 #include "../disc/scan.h"
 #include <cstdio>
 #include <cstring>
@@ -18,8 +19,8 @@ static void print_identity(const Disc& d, const Identity& r) {
 }
 
 int main(int argc, char** argv) {
-    if (argc < 3 || (strcmp(argv[1], "identify") && strcmp(argv[1], "scan") && strcmp(argv[1], "files"))) {
-        fprintf(stderr, "usage: sf3disc identify IMAGE [--no-hash] | files IMAGE | scan DIR [--no-hash]\n");
+    if (argc < 3 || (strcmp(argv[1], "identify") && strcmp(argv[1], "scan") && strcmp(argv[1], "files") && strcmp(argv[1], "probe"))) {
+        fprintf(stderr, "usage: sf3disc identify IMAGE [--no-hash] | files IMAGE | scan DIR [--no-hash] | probe IMAGE [EXTRACT_DIR [PROFILES_DIR]]\n");
         return 2;
     }
     bool hash = !(argc > 3 && !strcmp(argv[3], "--no-hash"));
@@ -29,6 +30,14 @@ int main(int argc, char** argv) {
             Identity r = identify(d, hash);
             print_identity(d, r);
             return (r.known || !hash) ? 0 : 1;
+        }
+        if (!strcmp(argv[1], "probe")) {   // the manifest (stdout) and content ID (stderr), as tools/probe.py
+            Disc d(argv[2]);
+            Probe p = probe(d, argc > 3 ? argv[3] : "");
+            printf("%s\n", p.manifest_json.c_str());
+            fprintf(stderr, "content %s\n", p.content_id.c_str());
+            if (argc > 4) fprintf(stderr, "profile %s\n", match_profile(argv[4], p.content_id).c_str());
+            return 0;
         }
         if (!strcmp(argv[1], "files")) {
             Disc d(argv[2]);
