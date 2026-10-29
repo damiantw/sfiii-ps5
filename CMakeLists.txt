@@ -62,7 +62,22 @@ add_library(sf3ps5_patch STATIC
   src/patch/netjson.cpp src/patch/dfr.cpp src/patch/vfs.cpp src/patch/package.cpp src/patch/build.cpp src/patch/fetch.cpp)
 target_link_libraries(sf3ps5_patch PUBLIC sf3ps5_disc miniz)
 target_include_directories(sf3ps5_patch PRIVATE external/libchdr/deps/miniz-3.1.2)
+# Dear ImGui (MIT), pinned submodule; the platform layer adds its backends.
+set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
+set(IMGUI_SOURCES ${IMGUI_DIR}/imgui.cpp ${IMGUI_DIR}/imgui_draw.cpp ${IMGUI_DIR}/imgui_tables.cpp ${IMGUI_DIR}/imgui_widgets.cpp)
+add_library(imgui STATIC ${IMGUI_SOURCES})
+target_include_directories(imgui PUBLIC ${IMGUI_DIR})
+# The menu: launcher, translation/download pages, in-game overlay.
+find_package(Threads REQUIRED)
+add_library(sf3ps5_menu STATIC src/menu/menu.cpp src/menu/jobs.cpp src/menu/settings.cpp)
+target_link_libraries(sf3ps5_menu PUBLIC sf3ps5_patch imgui Threads::Threads)
 if(NOT CMAKE_CROSSCOMPILING)
+  # Headless menu test: ImGui with the test-engine item hooks so the test can find and click widgets.
+  add_library(imgui_hooked STATIC ${IMGUI_SOURCES} ${IMGUI_DIR}/backends/imgui_impl_null.cpp)
+  target_include_directories(imgui_hooked PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
+  target_compile_definitions(imgui_hooked PUBLIC IMGUI_ENABLE_TEST_ENGINE)
+  add_executable(menu_smoke tests/menu_smoke.cpp src/menu/menu.cpp src/menu/jobs.cpp src/menu/settings.cpp)
+  target_link_libraries(menu_smoke sf3ps5_patch imgui_hooked Threads::Threads)
   add_executable(sf3disc src/cli/sf3disc.cpp)
   target_link_libraries(sf3disc sf3ps5_disc)
   add_executable(sf3patch src/cli/sf3patch.cpp)

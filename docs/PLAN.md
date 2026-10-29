@@ -97,7 +97,7 @@ The runtime's CD block plus accurate-drive timing (HEAD 932146d) read CUE/BIN. A
 - Check the license of any xdelta decoder: xdelta3 is Apache-2.0 (OK) or GPL depending on version. Verify, or write a clean-room VCDIFF decoder (it's small).
 
 ## 9. Menu (ImGui, Shipwright-style)
-ImGui is already vendored (`runtime/third_party/imgui`). Port Shipwright's PS5 navigation (touchpad toggle, amber focus, L1/R1 tabs, scale 1.5-3.0x, PS glyphs; Notes §5). Pages:
+Dear ImGui is the `external/imgui` submodule (v1.93.0, MIT); the skeleton is in `src/menu`. Port Shipwright's PS5 navigation (touchpad toggle, amber focus, L1/R1 tabs, scale 1.5-3.0x, PS glyphs; Notes §5). Pages:
 - Launcher: 4 slots + disc status + build/patch.
 - In-game: save/load state, speed 1x/2x/3x + fast-forward hold, display (scale, 4:3/16:9 presentation, filter, sharp/nearest), audio, controls remap, saves import/export, about/licenses.
 
