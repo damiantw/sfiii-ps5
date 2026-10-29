@@ -12,7 +12,9 @@ add_executable(sf3ps5 ${SF3_PS5_ROOT}/src/host/host_runtime.cpp ${SF3_PS5_ROOT}/
     ${SF3_PS5_ROOT}/src/host/window_screen.cpp ${SATURN_RUNTIME}/src/host/settings.cpp)
 target_include_directories(sf3ps5 PRIVATE ${SF3_PS5_ROOT}/src ${SATURN_RUNTIME}/include ${SATURN_RUNTIME}/include/saturn
     ${SATURN_RUNTIME}/src/machine ${SATURN_RUNTIME}/src/video ${SATURN_RUNTIME}/src)
-target_link_libraries(sf3ps5 saturn_core saturn_machine sf3ps5_host sf3ps5_runtime_bind recomp Threads::Threads)
+target_link_libraries(sf3ps5 saturn_core saturn_machine sf3ps5_host sf3ps5_prepare sf3ps5_runtime_bind recomp Threads::Threads)
+# the shipped revision profiles, for a disc's first launch (src/prepare)
+target_compile_definitions(sf3ps5 PRIVATE SF3_PS5_PROFILES_DIR="${SF3_PS5_ROOT}/external/sfiii-native/profiles")
 # sfiii-native's SH-2 interpreter fallback, when the tree has it (tools/ps5/x64-profile.sh)
 if(TARGET sf3_interp)
   target_sources(sf3ps5 PRIVATE $<TARGET_OBJECTS:sf3_interp>)

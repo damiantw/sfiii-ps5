@@ -57,6 +57,15 @@ add_library(sf3ps5_disc STATIC
   src/patch/dotnet.cpp src/patch/ipbin.cpp)
 target_include_directories(sf3ps5_disc PUBLIC src)
 target_link_libraries(sf3ps5_disc PUBLIC chdr-static)
+# First launch of a disc (src/prepare): sfiii-native's generator (module audit, discovery, x86-64
+# lowering; native/recomp/gen, MIT) run on the player's disc, into the data folder.
+set(SF3_GEN ${CMAKE_CURRENT_SOURCE_DIR}/external/sfiii-native/native/recomp/gen)
+add_library(sf3ps5_prepare STATIC src/prepare/prepare.cpp
+  ${SF3_GEN}/profile_gen.cpp ${SF3_GEN}/discovery.cpp ${SF3_GEN}/emit_cpp.cpp ${SF3_GEN}/emit_x64.cpp
+  ${SF3_GEN}/code_cache.cpp ${SF3_GEN}/sh2_text.cpp ${SF3_GEN}/module_set.cpp)
+target_include_directories(sf3ps5_prepare PUBLIC src PRIVATE ${SF3_GEN})
+target_compile_features(sf3ps5_prepare PUBLIC cxx_std_20)
+target_link_libraries(sf3ps5_prepare PUBLIC sf3ps5_disc)
 # The translation patcher (port of sfiii-native tools/sf3patch); zip reading uses libchdr's miniz (MIT).
 # LZMA SDK 26.02 7z decoder (public domain), vendored in external/lzma-sdk: .7z add-ons.
 set(LZMA_SDK ${CMAKE_CURRENT_SOURCE_DIR}/external/lzma-sdk/C)
@@ -121,7 +130,7 @@ target_link_libraries(sf3ps5_saturn_pad PUBLIC sf3ps5_menu)
 if(Vulkan_FOUND AND SDL2_FOUND)
   add_library(sf3ps5_host STATIC src/host/platform_host.cpp src/host/audio_sdl2.cpp src/host/relaunch.cpp src/vulkan/display.cpp)
   target_include_directories(sf3ps5_host PUBLIC src)
-  target_link_libraries(sf3ps5_host PUBLIC sf3ps5_menu_vk sf3ps5_runtime_host sf3ps5_saturn_pad sf3ps5_pad_sdl2 SDL2::SDL2)
+  target_link_libraries(sf3ps5_host PUBLIC sf3ps5_prepare sf3ps5_menu_vk sf3ps5_runtime_host sf3ps5_saturn_pad sf3ps5_pad_sdl2 SDL2::SDL2)
   if(NOT CMAKE_CROSSCOMPILING)
     add_executable(host_test tests/host_test.cpp)
     target_link_libraries(host_test sf3ps5_host)
@@ -151,6 +160,8 @@ if(NOT CMAKE_CROSSCOMPILING)
   target_link_libraries(menu_smoke sf3ps5_patch imgui_hooked Threads::Threads)
   add_executable(sf3disc src/cli/sf3disc.cpp)
   target_link_libraries(sf3disc sf3ps5_disc)
+  add_executable(sf3prepare src/cli/sf3prepare.cpp)
+  target_link_libraries(sf3prepare sf3ps5_prepare)
   add_executable(sf3patch src/cli/sf3patch.cpp)
   target_link_libraries(sf3patch sf3ps5_patch)
   add_executable(patch_quirks tests/patch_quirks.cpp)

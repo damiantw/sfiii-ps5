@@ -31,7 +31,7 @@ public:
     // outcome comes later through Menu::notify.
 };
 
-enum class Page { Launcher, Patch, Download, Settings, InGame };
+enum class Page { Launcher, Patch, Download, Settings, InGame, Prepare };   // Prepare: a disc's first launch
 
 class Menu {
 public:

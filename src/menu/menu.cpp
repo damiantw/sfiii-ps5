@@ -59,12 +59,13 @@ std::string Menu::addons_dir() const {
 }
 
 void Menu::draw() {
+    if (page_ == Page::Prepare) scanned_ = true;   // the game's process: no launcher to fill
     if (!scanned_ && !jobs_.busy()) { jobs_.start_scan(s_.data_dir); scanned_ = true; }
     {   // After a patch or download finishes, refresh what is on disk.
         auto st = jobs_.status();
         if (st.done && st.id != handled_job_) {
             handled_job_ = st.id;
-            if (!st.failed && st.kind != JobKind::Scan) { list_ = {}; list_error_.clear(); patch_target_ = -1; jobs_.start_scan(s_.data_dir); }
+            if (!st.failed && st.kind != JobKind::Scan && st.kind != JobKind::Prepare) { list_ = {}; list_error_.clear(); patch_target_ = -1; jobs_.start_scan(s_.data_dir); }
         }
     }
     if (!visible_) return;
@@ -73,6 +74,13 @@ void Menu::draw() {
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.8f, io.DisplaySize.y * 0.8f), ImGuiCond_Always);
     ImGui::Begin("Shining Force III", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
+    if (page_ == Page::Prepare) {   // a disc's first launch: only the progress, nothing to choose
+        ImGui::TextWrapped("Preparing this disc. This happens once per disc: the game's code is read from it "
+                           "and translated for this machine, then kept in %s/cache.", s_.data_dir.c_str());
+        job_status();
+        ImGui::End();
+        return;
+    }
     if (ImGui::BeginTabBar("pages")) {
         auto tab = [&](const char* name, Page p, void (Menu::*fn)()) {
             ImGuiTabItemFlags f = select_ > 0 && page_ == p ? ImGuiTabItemFlags_SetSelected : 0;

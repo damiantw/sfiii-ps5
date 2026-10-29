@@ -33,7 +33,7 @@ struct PatchList {
 // What the wizard would offer for this disc (fast: no track hashing).
 PatchList list_patches(const PatchRequest& r);
 
-enum class JobKind { None, Scan, Patch, Fetch };
+enum class JobKind { None, Scan, Patch, Fetch, Prepare };
 
 struct JobStatus {
     uint64_t id = 0;
@@ -53,6 +53,10 @@ public:
     void start_scan(const std::string& dir);
     void start_patch(const PatchRequest& r);
     void start_fetch(const std::string& dest, std::shared_ptr<fetch::Transport> t);
+    // A disc's first launch (src/prepare, run by the host): body reports progress(0..1, what) and
+    // throws on failure.
+    using PrepareBody = std::function<void(const std::function<void(double, const std::string&)>&)>;
+    void start_prepare(const std::string& title, PrepareBody body);
     disc::ScanResult scan_result() const;
     void join();
 private:
@@ -60,7 +64,7 @@ private:
     void log(const std::string& m);
     void progress(double p);
     mutable std::mutex mu_;
-    JobStatus st_, last_[4];
+    JobStatus st_, last_[5];
     disc::ScanResult scan_;
     std::atomic<bool> running_{false};
     uint64_t next_id_ = 0;
