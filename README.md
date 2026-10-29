@@ -13,7 +13,7 @@ The recompiler port and the SH-2 interpreter fallback live in the fork, which is
 patch files. Disc images are read and built **on the console** from the user's own BIN/CUE or CHD files.
 
 ## Status
-Early; nothing runs on the console yet. What exists, all tested on Linux:
+Early. Only the swapchain test title (below) has run on the console. What exists, all tested on Linux:
 - **Disc layer** (`src/disc`): reads BIN/CUE and CHD images, identifies the four discs by their
   Redump hashes (IP.BIN as a fallback), and scans a folder (default `/data/shiningforceiii`) for
   any combination of them.
@@ -26,7 +26,7 @@ Early; nothing runs on the console yet. What exists, all tested on Linux:
   speed 1x/2x/3x with hold-to-fast-forward, and 4:3 or 16:9 display. The menu does not draw on
   the PS5 yet: its renderer and gamepad backends come with the Vulkan backend.
 - the debug server, its client and the crash handler (`docs/devtools.md`)
-- a `ps5/param.json` skeleton
+- a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
 
 Still to come: the Vulkan backend, the PS5 network transport for downloads, `.7z` add-ons, and
 the packaging scripts.
@@ -52,6 +52,19 @@ The launcher picks a translated image over the original for each slot.
 ### Settings
 They are stored in `/data/shiningforceiii/settings.txt`: speed, fast-forward hold, 4:3/16:9,
 sharp pixels, menu size, download opt-in, add-ons, and the patch mode.
+
+## Console test title (swapchain)
+
+`tools/ps5/build-test-title.sh` builds a 10-second 4K swapchain test as a
+homebrew folder title (`build/ps5-test/PPSA99331/`). It uses only this repo's
+MIT platform layer; see [docs/platform.md](docs/platform.md) for what each
+piece replaces and how it was written. It needs `VULKAN_INCLUDE`,
+`PS5_PAYLOAD_SDK` (compiler and system stubs only), `RADV_ARCHIVE` and
+`PS5_NATIVE_TOOL`. Copy the folder to `/data/homebrew/` and launch it. The test
+writes `/data/sfiii-ps5-test/swapchain.txt` (create that folder first).
+Status: the startup code, platform shim and linker script pass on the console
+(3840x2160, 60 fps). The companion `libc.prx` has not been run on the console
+yet, and the title crashes on exit.
 
 ## Build (Linux: tools and tests)
 ```sh

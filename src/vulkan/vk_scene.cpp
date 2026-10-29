@@ -16,11 +16,13 @@ uint32_t VkScene::memory_type(uint32_t bits, VkMemoryPropertyFlags want) const {
     return UINT32_MAX;
 }
 
-bool VkScene::init(std::string& why) {
+bool VkScene::init(std::string& why, bool display) {
     VkApplicationInfo app{VK_STRUCTURE_TYPE_APPLICATION_INFO};
     app.pApplicationName = "sfiii-ps5", app.apiVersion = VK_API_VERSION_1_1;
     VkInstanceCreateInfo ii{VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO};
     ii.pApplicationInfo = &app;
+    const char* iext[] = {"VK_KHR_surface", "VK_KHR_display"};
+    if (display) ii.enabledExtensionCount = 2, ii.ppEnabledExtensionNames = iext;
     VK(vkCreateInstance(&ii, nullptr, &inst_), "vkCreateInstance");
     uint32_t n = 0;
     vkEnumeratePhysicalDevices(inst_, &n, nullptr);
@@ -43,6 +45,8 @@ bool VkScene::init(std::string& why) {
     qi.queueFamilyIndex = family_, qi.queueCount = 1, qi.pQueuePriorities = &prio;
     VkDeviceCreateInfo di{VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO};
     di.queueCreateInfoCount = 1, di.pQueueCreateInfos = &qi;
+    const char* dext[] = {"VK_KHR_swapchain"};
+    if (display) di.enabledExtensionCount = 1, di.ppEnabledExtensionNames = dext;
     VK(vkCreateDevice(phys_, &di, nullptr, &dev_), "vkCreateDevice");
     vkGetDeviceQueue(dev_, family_, 0, &queue_);
     VkCommandPoolCreateInfo pi{VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO};
