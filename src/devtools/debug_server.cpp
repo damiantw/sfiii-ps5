@@ -3,6 +3,7 @@
 // the run paused it serves commands there, so the game never sees a half-done
 // command (the same rule as --agent). A free-running client ("run") is polled
 // without blocking, so the game keeps its speed.
+#include <stdexcept>
 #include "debug_server.h"
 #include <arpa/inet.h>
 #include <cerrno>
@@ -22,6 +23,11 @@
 #endif
 
 namespace {
+volatile int g_throw_depth = 3;
+[[gnu::noinline]] void dev_throw(int d = g_throw_depth) {
+    if (d > 0) { dev_throw(d - 1); return; }
+    throw std::runtime_error("devtools throw");
+}
 DevHooks H;
 DevConfig C;
 int g_listen = -1, g_client = -1;
@@ -152,7 +158,10 @@ bool serve(const std::string& line) {
     } else if (cmd == "saved") say("saved " + H.save_status());
     else if (cmd == "loaded") say("loaded " + (H.load_status ? H.load_status() : std::string("done 0")));
     else if (cmd == "log") cmd_log(a);
-    else if (cmd == "detach" || cmd == "quit") { say("bye"); drop(); return true; }   // quit never ends the game here
+    else if (cmd == "throw") {   // a C++ exception on this thread: proves the unwinder works here
+        try { dev_throw(); say("error not thrown"); }
+        catch (const std::exception& e) { say(std::string("caught ") + e.what()); }
+    } else if (cmd == "detach" || cmd == "quit") { say("bye"); drop(); return true; }   // quit never ends the game here
     else say("error no command " + cmd);
     return false;
 }

@@ -41,6 +41,7 @@ void AudioOut::push(const int16_t* lr, int frames) {
         std::vector<int16_t> silence(size_t(kOutRate) * kLeadMs / 1000 * 2, 0);
         SDL_QueueAudio(dev_, silence.data(), Uint32(silence.size() * 2));
     }
+    stats_.count(lr, frames);
     std::vector<int16_t> in(lr, lr + size_t(frames) * 2);
     if (volume_ < 1.0f) for (auto& v : in) v = int16_t(v * volume_);
     SDL_AudioStreamPut(stream_, in.data(), int(in.size() * 2));

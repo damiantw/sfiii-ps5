@@ -4,6 +4,7 @@
 // The queue is kept between `lead` and `max` ms: an empty queue gets `lead` ms of silence first
 // (one click instead of many), a full one drops the chunk. MIT, see LICENSE.
 #pragma once
+#include "audio_stats.h"
 #include <SDL.h>
 #include <cstdint>
 #include <string>
@@ -19,7 +20,7 @@ public:
     void set_volume(float v) { volume_ = v < 0 ? 0 : v > 1 ? 1 : v; }
     void pause(bool p);
     int queued_ms() const;
-    struct Stats { int underruns = 0, dropped = 0; };
+    using Stats = AudioStats;
     Stats stats() const { return stats_; }
     SDL_AudioDeviceID device() const { return dev_; }
     ~AudioOut();

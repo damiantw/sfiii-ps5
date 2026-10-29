@@ -45,6 +45,9 @@ PadEvents PadNav::feed(const PadState& s, bool visible, ImGuiIO* io, bool option
 void setup_imgui(ImGuiIO& io) {
     io.ConfigFlags |= ImGuiConfigFlags_NavEnableGamepad | ImGuiConfigFlags_NavEnableKeyboard;
     io.IniFilename = nullptr;
+    // Remote Play and network jitter stretch a short press past ImGui's 0.275 s repeat delay,
+    // so one tap moved the cursor two rows. Repeat only on a deliberate hold.
+    io.KeyRepeatDelay = 0.6f;
     io.LogFilename = nullptr;
     ImGui::StyleColorsDark();
     ImGuiStyle& st = ImGui::GetStyle();

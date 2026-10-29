@@ -70,9 +70,11 @@ project's `SF3Patch.exe` in `/data/shiningforceiii/translation/`, and optionally
 in `translation/V25+/`. Copy them there yourself, or turn on **Download → Allow downloading** and
 press **Download**. Nothing is downloaded unless you do that. Tick or untick patches as in the
 wizard, then choose one of:
-- **New image beside the original** (default): writes `<name> (Translated).bin/.cue`.
-- **Replace the original** (BIN/CUE only, asks first): the original files are kept as `.bak`
-  files; delete them once the game works.
+- Default (**Replace the original** unticked): writes a new `<name> (Translated).bin/.cue`
+  beside the original.
+- **Replace the original** ticked (BIN/CUE only, asks first): the original files are kept as `.bak`
+  files; delete them once the game works. (A checkbox, as the pad could not reach the old radio
+  buttons on the console.)
 
 The launcher picks a translated image over the original for each slot.
 

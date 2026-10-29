@@ -31,6 +31,7 @@ logic (drive, replay segments, story-flag checks) runs against the console uncha
 | `frame` | `frame W H` + W*H*3 RGB bytes; `sf3dev.py shot x.png` |
 | `save PATH` / `saved` / `load PATH` | native states at the next safe point |
 | `log [N]` | `log K` + the last K log lines |
+| `throw` | `caught devtools throw`: a C++ exception thrown three calls deep and caught, to check unwinding on the console |
 | `detach` (or `quit`) | `bye`; the game keeps running (quit never ends the title) |
 
 Commands are served on the emulation thread at VBlank-IN only, so a paused run is exactly as
