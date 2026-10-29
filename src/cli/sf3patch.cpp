@@ -192,11 +192,13 @@ int main(int argc, char** argv) {
             for (auto& t : d.tracks)
                 if (std::find(old_files.begin(), old_files.end(), t.path) == old_files.end()) old_files.push_back(t.path);
             d.tracks.clear();   // close the source files before replacing them
+            // Keep the originals as .bak (as the menu does), then swap the new image in.
+            old_files.push_back(src_cue);
+            for (auto& f : old_files)
+                if (rename(f.c_str(), (f + ".bak").c_str()) != 0) throw package::PackageError("could not back up " + f);
             if (rename(target.c_str(), final_bin.c_str()) != 0 || rename(w.cue_path.c_str(), src_cue.c_str()) != 0)
-                throw package::PackageError("could not replace " + src_cue);
-            // The old track files are now unreferenced: the new CUE names one BIN.
-            for (auto& f : old_files) if (f != final_bin) remove(f.c_str());
-            printf("patched %s in place (%llu data sectors)\n", src_cue.c_str(), (unsigned long long)w.sectors);
+                throw package::PackageError("could not replace " + src_cue + " (originals are in the .bak files)");
+            printf("patched %s in place (%llu data sectors); originals kept as .bak\n", src_cue.c_str(), (unsigned long long)w.sectors);
         } else
             printf("wrote %s and %s (%llu data sectors)\n", target.c_str(), disc::path_name(w.cue_path).c_str(), (unsigned long long)w.sectors);
         printf("track 1 sha1 %s\n", w.track1_sha1.c_str());

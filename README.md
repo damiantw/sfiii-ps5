@@ -68,7 +68,7 @@ build/sf3disc identify disc.cue|disc.chd
 build/sf3patch fetch --dest translation           # opt-in download (curl): SF3Patch.exe + V25+ add-ons
 build/sf3patch list  disc.cue --package translation/SF3Patch.exe --addons translation/V25+
 build/sf3patch patch disc.chd --package translation/SF3Patch.exe --addons translation/V25+ -o out.bin
-build/sf3patch patch disc.cue --package ... --in-place     # replaces the BIN/CUE; no backup, unlike the menu
+build/sf3patch patch disc.cue --package ... --in-place     # replaces the BIN/CUE; originals kept as .bak
 ```
 `--enable/--disable/--only NAME` change which patches are ticked. `--reproducible` gives fixed
 timestamps; that is how the tests compare against the Python patcher.
