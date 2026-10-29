@@ -59,7 +59,10 @@ Still to come: the first run of the full app on the console.
 Redump dumps, as BIN/CUE or CHD: Scenario 1 (USA), Scenario 2 (Japan, 1.003 and Rev A 2.000),
 Scenario 3 (Japan) and the Premium Disc (Japan). An image that is already translated is also
 recognised. Put them, in any combination, in `/data/shiningforceiii` (subfolders up to 3 levels
-deep are fine).
+deep are fine, e.g. one folder per disc with its `.cue` and `(Track 1)`/`(Track 2)` `.bin` files).
+If a scan finds nothing, the Discs log says why: the folder cannot be opened (with the system's
+reason) or which entries it holds. On the PS5 the title's sandbox currently cannot open `/data`
+("Operation not permitted"), so discs are not found there yet.
 
 ### Translating on the console
 In the menu: **Discs → Translate...** (or the **Translation** tab). It needs the translation
