@@ -58,9 +58,19 @@ add_library(sf3ps5_disc STATIC
 target_include_directories(sf3ps5_disc PUBLIC src)
 target_link_libraries(sf3ps5_disc PUBLIC chdr-static)
 # The translation patcher (port of sfiii-native tools/sf3patch); zip reading uses libchdr's miniz (MIT).
+# LZMA SDK 26.02 7z decoder (public domain), vendored in external/lzma-sdk: .7z add-ons.
+set(LZMA_SDK ${CMAKE_CURRENT_SOURCE_DIR}/external/lzma-sdk/C)
+add_library(sf3_7z STATIC
+  ${LZMA_SDK}/7zAlloc.c ${LZMA_SDK}/7zArcIn.c ${LZMA_SDK}/7zBuf.c ${LZMA_SDK}/7zCrc.c ${LZMA_SDK}/7zCrcOpt.c
+  ${LZMA_SDK}/7zDec.c ${LZMA_SDK}/7zStream.c ${LZMA_SDK}/Bcj2.c ${LZMA_SDK}/Bra.c ${LZMA_SDK}/Bra86.c
+  ${LZMA_SDK}/BraIA64.c ${LZMA_SDK}/CpuArch.c ${LZMA_SDK}/Delta.c ${LZMA_SDK}/Lzma2Dec.c ${LZMA_SDK}/LzmaDec.c
+  ${LZMA_SDK}/Ppmd7.c ${LZMA_SDK}/Ppmd7Dec.c)
+target_include_directories(sf3_7z PUBLIC ${LZMA_SDK})
+target_compile_definitions(sf3_7z PRIVATE Z7_PPMD_SUPPORT)
+set_target_properties(sf3_7z PROPERTIES POSITION_INDEPENDENT_CODE ON)
 add_library(sf3ps5_patch STATIC
-  src/patch/netjson.cpp src/patch/dfr.cpp src/patch/vfs.cpp src/patch/package.cpp src/patch/build.cpp src/patch/fetch.cpp)
-target_link_libraries(sf3ps5_patch PUBLIC sf3ps5_disc miniz)
+  src/patch/netjson.cpp src/patch/dfr.cpp src/patch/vfs.cpp src/patch/sevenzip.cpp src/patch/package.cpp src/patch/build.cpp src/patch/fetch.cpp)
+target_link_libraries(sf3ps5_patch PUBLIC sf3ps5_disc miniz PRIVATE sf3_7z)
 target_include_directories(sf3ps5_patch PRIVATE external/libchdr/deps/miniz-3.1.2)
 # Dear ImGui (MIT), pinned submodule; the platform layer adds its backends.
 set(IMGUI_DIR ${CMAKE_CURRENT_SOURCE_DIR}/external/imgui)
@@ -92,6 +102,9 @@ if(NOT CMAKE_CROSSCOMPILING)
   add_library(imgui_hooked STATIC ${IMGUI_SOURCES} ${IMGUI_DIR}/backends/imgui_impl_null.cpp)
   target_include_directories(imgui_hooked PUBLIC ${IMGUI_DIR} ${IMGUI_DIR}/backends)
   target_compile_definitions(imgui_hooked PUBLIC IMGUI_ENABLE_TEST_ENGINE)
+  add_executable(sevenzip_test tests/sevenzip_test.cpp)
+  target_link_libraries(sevenzip_test sf3ps5_patch)
+  target_include_directories(sevenzip_test PRIVATE src)
   add_executable(menu_smoke tests/menu_smoke.cpp src/menu/menu.cpp src/menu/jobs.cpp src/menu/settings.cpp src/menu/pad.cpp)
   target_link_libraries(menu_smoke sf3ps5_patch imgui_hooked Threads::Threads)
   add_executable(sf3disc src/cli/sf3disc.cpp)

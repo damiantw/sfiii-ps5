@@ -166,6 +166,7 @@ private:
 std::vector<uint8_t> Node::read() const {
     if (dir) throw VfsError(path() + " is a folder");
     if (zip) return zip->read(entry);
+    if (mem) return *mem;
     FILE* f = fopen(disk_path.c_str(), "rb");
     if (!f) throw VfsError("cannot open " + disk_path);
     std::vector<uint8_t> out;
@@ -277,6 +278,11 @@ static Node* ensure_dir(Node* cur, const std::string& part) {
     n->parent = cur;
     cur->kids.push_back(std::move(n));
     return cur->kids.back().get();
+}
+
+Node* ensure_path(Node* root, const std::vector<std::string>& parts) {
+    for (auto& p : parts) root = ensure_dir(root, p);
+    return root;
 }
 
 std::unique_ptr<Node> from_zip(const std::string& path, bool py, Offset off) {
