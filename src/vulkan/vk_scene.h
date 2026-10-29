@@ -20,7 +20,10 @@ namespace sf3ps5 {
 
 class VkScene {
 public:
-    bool init(std::string& why);                                   // instance, device, queue (headless)
+    // instance, device, queue. headless by default; display = VK_KHR_surface + VK_KHR_display on the
+    // instance and VK_KHR_swapchain on the device (the PS5's VideoOut WSI, see display.h)
+    bool init(std::string& why, bool display = false);
+    VkInstance instance() const { return inst_; }
     bool load_fragment(const std::vector<uint32_t>& spirv, std::string& why);
     bool upload(const std::vector<uint32_t>& scene, const std::vector<uint32_t>& textures, std::string& why);
     // One pass: draws the full target with the fragment shader. `picture` is the previous output

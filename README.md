@@ -22,6 +22,19 @@ Planned, with placeholders still to come:
 - the patcher and menu
 - the packaging scripts
 
+## Console test title (swapchain)
+
+`tools/ps5/build-test-title.sh` builds a 10-second 4K swapchain test as a
+homebrew folder title (`build/ps5-test/PPSA99331/`). It uses only this repo's
+MIT platform layer; see [docs/platform.md](docs/platform.md) for what each
+piece replaces and how it was written. It needs `VULKAN_INCLUDE`,
+`PS5_PAYLOAD_SDK` (compiler and system stubs only), `RADV_ARCHIVE` and
+`PS5_NATIVE_TOOL`. Copy the folder to `/data/homebrew/` and launch it. The test
+writes `/data/sfiii-ps5-test/swapchain.txt` (create that folder first).
+Status: the startup code, platform shim and linker script pass on the console
+(3840x2160, 60 fps). The companion `libc.prx` has not been run on the console
+yet, and the title crashes on exit.
+
 ## Build (Linux, dev tools test)
 ```sh
 git clone --recursive https://github.com/damiantw/sfiii-ps5
