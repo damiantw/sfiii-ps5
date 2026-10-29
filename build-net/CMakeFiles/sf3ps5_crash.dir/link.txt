@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsf3ps5_crash.a CMakeFiles/sf3ps5_crash.dir/src/devtools/crash_handler.cpp.o
+/usr/bin/ranlib libsf3ps5_crash.a

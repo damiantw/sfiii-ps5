@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/sf3disc.dir/link.d CMakeFiles/sf3disc.dir/src/cli/sf3disc.cpp.o -o sf3disc  libsf3ps5_disc.a external/libchdr/libchdr-static.a external/libchdr/deps/lzma-26.02/libchdr-lzma.a external/libchdr/deps/miniz-3.1.2/libminiz.a external/libchdr/deps/zstd-1.5.7/libzstd.a

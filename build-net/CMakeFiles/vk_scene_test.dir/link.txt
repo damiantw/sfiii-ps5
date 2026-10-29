@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/vk_scene_test.dir/link.d CMakeFiles/vk_scene_test.dir/tests/vk_scene_test.cpp.o -o vk_scene_test  libsf3ps5_vulkan.a /usr/lib/x86_64-linux-gnu/libvulkan.so

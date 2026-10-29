@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsf3ps5_runtime_host.a CMakeFiles/sf3ps5_runtime_host.dir/src/runtime/runtime_host.cpp.o
+/usr/bin/ranlib libsf3ps5_runtime_host.a

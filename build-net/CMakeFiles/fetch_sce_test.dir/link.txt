@@ -1,0 +1,1 @@
+/usr/bin/c++ -Wl,--dependency-file=CMakeFiles/fetch_sce_test.dir/link.d CMakeFiles/fetch_sce_test.dir/tests/fetch_sce_test.cpp.o -o fetch_sce_test  libsf3ps5_patch.a libsf3ps5_disc.a external/libchdr/libchdr-static.a external/libchdr/deps/lzma-26.02/libchdr-lzma.a external/libchdr/deps/zstd-1.5.7/libzstd.a external/libchdr/deps/miniz-3.1.2/libminiz.a libsf3_7z.a

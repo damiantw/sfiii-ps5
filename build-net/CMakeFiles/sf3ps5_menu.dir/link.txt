@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsf3ps5_menu.a CMakeFiles/sf3ps5_menu.dir/src/menu/menu.cpp.o CMakeFiles/sf3ps5_menu.dir/src/menu/jobs.cpp.o CMakeFiles/sf3ps5_menu.dir/src/menu/settings.cpp.o CMakeFiles/sf3ps5_menu.dir/src/menu/pad.cpp.o
+/usr/bin/ranlib libsf3ps5_menu.a

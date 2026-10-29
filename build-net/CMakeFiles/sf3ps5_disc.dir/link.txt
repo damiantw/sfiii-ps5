@@ -1,0 +1,2 @@
+/usr/bin/ar qc libsf3ps5_disc.a CMakeFiles/sf3ps5_disc.dir/src/disc/sha.cpp.o CMakeFiles/sf3ps5_disc.dir/src/disc/cdimage.cpp.o CMakeFiles/sf3ps5_disc.dir/src/disc/identify.cpp.o CMakeFiles/sf3ps5_disc.dir/src/disc/scan.cpp.o CMakeFiles/sf3ps5_disc.dir/src/patch/dotnet.cpp.o CMakeFiles/sf3ps5_disc.dir/src/patch/ipbin.cpp.o
+/usr/bin/ranlib libsf3ps5_disc.a

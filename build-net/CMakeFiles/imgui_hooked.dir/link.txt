@@ -1,0 +1,2 @@
+/usr/bin/ar qc libimgui_hooked.a CMakeFiles/imgui_hooked.dir/external/imgui/imgui.cpp.o CMakeFiles/imgui_hooked.dir/external/imgui/imgui_draw.cpp.o CMakeFiles/imgui_hooked.dir/external/imgui/imgui_tables.cpp.o CMakeFiles/imgui_hooked.dir/external/imgui/imgui_widgets.cpp.o CMakeFiles/imgui_hooked.dir/external/imgui/backends/imgui_impl_null.cpp.o
+/usr/bin/ranlib libimgui_hooked.a
