@@ -9,7 +9,8 @@
 #   PS5_PAYLOAD_SDK  prospero-clang/-lld, libc++ and the system-library stubs
 #   RADV_ARCHIVE     libvulkan_radeon.ps5.a (Mesa, MIT)
 #   PS5_NATIVE_TOOL  ELF -> PS5 ELF/fake SELF converter
-#   VULKAN_INCLUDE   Vulkan-Headers include dir
+#   VULKAN_INCLUDE   Vulkan-Headers include dir, header version >= 354 (only vulkan/ and vk_video/:
+#                    /usr/include would put the host libc ahead of libc++)
 #   SATURN_RUNTIME   saturn-recomp's runtime/ with sfiii-native's tools/runtime-diagnostics.patch
 set -euo pipefail
 R=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -34,9 +35,12 @@ $T link --in $B/sf3ps5 --out $W/eboot.elf "${link[@]}" --stub $W/stubs/libSceAgc
 $S/bin/prospero-clang -O2 -fPIC -fno-plt -c $P/companion/libc_companion.c -o $W/obj/companion.o
 $S/bin/prospero-lld --shared -soname libc.prx -T $P/ps5-title.ld --version-script $P/title-exports.map -o $W/companion.so $W/obj/companion.o -L$S/target/lib -lkernel
 $T link --in $W/companion.so --out $W/companion.elf "${link[@]}" --file-name libc.prx >/dev/null
+# the converter writes an application (0xFE10); rtld only loads a module (0xFE18 + module param)
+python3 "$R/tools/ps5/prx-fixup.py" $W/companion.elf $W/companion.elf
 A=$W/$TITLE_ID; rm -rf "$A"; mkdir -p $A/sce_sys $A/sce_module $A/profiles
-$T self --sign --in $W/eboot.elf --out $A/eboot.bin --magic 0x1D3D154F >/dev/null
-$T self --sign --in $W/companion.elf --out $A/sce_module/libc.prx --magic 0x1D3D154F >/dev/null
+python3 "$R/tools/ps5/make-fself.py" $W/eboot.elf $A/eboot.bin
+python3 "$R/tools/ps5/make-fself.py" --module $W/companion.elf $A/sce_module/libc.prx
 cp "$R"/external/sfiii-native/profiles/*.json $A/profiles/
 sed -e "s/@TITLE_ID@/$TITLE_ID/g" -e "s/@CONCEPT@/${TITLE_ID:4}/g" "$R/ps5/param.json" >$A/sce_sys/param.json
+python3 "$R/tools/ps5/make-icon.py" $A/sce_sys/icon0.png
 echo "title folder: $A"

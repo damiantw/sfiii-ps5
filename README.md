@@ -92,8 +92,22 @@ profiles, read at `/app0/profiles`. It is sfiii-native's generic build, so it ha
 made from a disc: each disc's game code is built on the console at its first launch (see
 [First launch of a disc](#first-launch-of-a-disc)). It needs the same tools as the test title
 below, plus `SATURN_RUNTIME` (saturn-recomp's `runtime/` with sfiii-native's
-`tools/runtime-diagnostics.patch`). `TITLE_ID=` and `OUT=` override the defaults. It builds and
-links, but has not run on the console yet.
+`tools/runtime-diagnostics.patch`). `VULKAN_INCLUDE` must hold Vulkan-Headers 1.4.354 or newer and
+nothing else (not `/usr/include`, which puts the host libc ahead of libc++). `TITLE_ID=` and `OUT=`
+override the defaults. The build also writes `sce_sys/icon0.png` (a generated gradient).
+
+To install, copy the folder to a staging path such as `/data/sf3stage/` first, then rename it into
+`/data/homebrew/` so ShadowMountPlus sees it complete. If it finds the folder half-copied or without
+`icon0.png`, it stops retrying that title ID until the console reboots.
+
+Both `eboot.bin` and `sce_module/libc.prx` are wrapped as fake SELFs by `tools/ps5/make-fself.py`
+(MIT, written from the container layout); the module uses the PS5 module magic `54 14 F5 EE`.
+`tools/ps5/prx-fixup.py` turns the converter's output for the companion into a module (ELF type,
+module param, SONAME, module info and its export library). The build output is byte-for-byte
+reproducible.
+
+Status: it builds and links. On the console, earlier builds stopped at `libc.prx`
+(`PRX_SCE_MODULE_LOAD_ERROR`); this build has not run there yet.
 
 ## Console test title (swapchain)
 
