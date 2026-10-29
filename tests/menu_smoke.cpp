@@ -187,7 +187,7 @@ int main(int argc, char** argv) {
         CHECK(m.speed(false) == 1 && m.speed(true) == 3);
         CHECK(h.click("Hold R2 to fast-forward"));
         CHECK(m.speed(true) == 1);
-        CHECK(h.click("Display") && h.click("16:9 (stretched)"));
+        CHECK(h.click("Display") && h.click("16:9 (where the game draws it)"));
         CHECK(m.aspect() > 1.7f);
         CHECK(h.click("Speed") && h.click("2x"));
         CHECK(m.speed(false) == 2);

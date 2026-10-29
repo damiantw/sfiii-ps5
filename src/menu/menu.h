@@ -4,6 +4,7 @@
 // calls draw() between ImGui::NewFrame() and ImGui::Render(). MIT, see LICENSE.
 #pragma once
 #include "jobs.h"
+#include "pad.h"
 #include "settings.h"
 #include <memory>
 #include <string>
@@ -38,6 +39,7 @@ public:
     bool in_game() const { return in_game_; }
     void set_in_game(bool g) { in_game_ = g; }
     void draw();                       // inside an ImGui frame
+    void handle(const PadEvents& e);   // before draw(): toggle, L1/R1 tabs
 
     void set_reproducible(bool r) { reproducible_ = r; }   // tests: deterministic patch output
 

@@ -1,7 +1,9 @@
 // MIT, see LICENSE.
 #include "menu.h"
 #include "imgui.h"
+#include "imgui_internal.h"
 #include <sys/stat.h>
+#include <vector>
 
 namespace sf3::menu {
 
@@ -18,6 +20,22 @@ const char* slot_label(int i) {
 
 Menu::Menu(Host& host, Settings& settings, Jobs& jobs, std::string settings_path)
     : host_(host), s_(settings), jobs_(jobs), settings_path_(std::move(settings_path)) {}
+
+void Menu::handle(const PadEvents& e) {
+    if (e.toggle_menu) {
+        if (visible_) { if (in_game_) close(); }        // the launcher cannot be closed
+        else open(in_game_ ? Page::InGame : Page::Launcher);
+        return;
+    }
+    if (!visible_ || !e.tab || ImGui::GetTopMostPopupModal()) return;
+    std::vector<Page> tabs;
+    if (in_game_) tabs.push_back(Page::InGame);
+    for (Page p : {Page::Launcher, Page::Patch, Page::Download, Page::Settings}) tabs.push_back(p);
+    size_t i = 0;
+    while (i < tabs.size() && tabs[i] != page_) i++;
+    i = (i + tabs.size() + size_t(e.tab + 1) - 1) % tabs.size();   // e.tab is -1 or +1
+    open(tabs[i]);
+}
 
 void Menu::open(Page p) { page_ = p; visible_ = true; select_ = 2; }
 void Menu::close() { visible_ = false; if (in_game_) host_.resume(); }
@@ -51,7 +69,7 @@ void Menu::draw() {
     }
     if (!visible_) return;
     ImGuiIO& io = ImGui::GetIO();
-    io.FontGlobalScale = s_.ui_scale;
+    ImGui::GetStyle().FontScaleMain = s_.ui_scale;
     ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.5f, io.DisplaySize.y * 0.5f), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
     ImGui::SetNextWindowSize(ImVec2(io.DisplaySize.x * 0.8f, io.DisplaySize.y * 0.8f), ImGuiCond_Always);
     ImGui::Begin("Shining Force III", nullptr, ImGuiWindowFlags_NoCollapse | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoResize);
@@ -208,13 +226,15 @@ void Menu::settings_page() {
     if (ImGui::Combo("Speed", &sp, "1x\0" "2x\0" "3x\0")) { s_.speed = sp + 1; changed(); }
     if (ImGui::Checkbox("Hold R2 to fast-forward", &s_.fast_forward_hold)) changed();
     int a = s_.aspect == Aspect::Ratio16x9;
-    if (ImGui::Combo("Display", &a, "4:3\0" "16:9 (stretched)\0")) { s_.aspect = a ? Aspect::Ratio16x9 : Aspect::Ratio4x3; changed(); }
+    if (ImGui::Combo("Display", &a, "4:3\0" "16:9 (where the game draws it)\0")) { s_.aspect = a ? Aspect::Ratio16x9 : Aspect::Ratio4x3; changed(); }
     if (ImGui::Checkbox("Sharp pixels", &s_.sharp_pixels)) changed();
     if (ImGui::SliderFloat("Menu size", &s_.ui_scale, 1.0f, 3.0f, "%.1f")) changed();
 }
 
 void Menu::in_game_page() {
-    if (ImGui::Button("Resume")) { close(); return; }
+    bool resume = ImGui::Button("Resume");
+    ImGui::SetItemDefaultFocus();
+    if (resume) { close(); return; }
     ImGui::SeparatorText("Save states");
     ImGui::SliderInt("Slot", &state_slot_, 0, STATE_SLOTS - 1);
     std::string info = host_.state_info(state_slot_);

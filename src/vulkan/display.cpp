@@ -47,6 +47,7 @@ bool Display::open(VkScene& scene, std::string& why) {
     ci.surface = surface_;
     ci.minImageCount = caps.minImageCount < 2 ? 2 : caps.minImageCount;
     if (caps.maxImageCount && ci.minImageCount > caps.maxImageCount) ci.minImageCount = caps.maxImageCount;
+    format_ = fmt.format;
     ci.imageFormat = fmt.format, ci.imageColorSpace = fmt.colorSpace, ci.imageExtent = extent_;
     ci.imageArrayLayers = 1, ci.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, ci.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
@@ -63,11 +64,11 @@ bool Display::open(VkScene& scene, std::string& why) {
     return true;
 }
 
-bool Display::frame(Rect r, bool nearest, std::string& why) {
+bool Display::frame(Rect r, bool nearest, std::string& why, const Overlay& overlay) {
     uint32_t i = 0;
     VKD(vkAcquireNextImageKHR(s_->device(), chain_, UINT64_MAX, acquired_, VK_NULL_HANDLE, &i), "vkAcquireNextImageKHR");
     if (!s_->present_to(images_[i], width(), height(), layouts_[i], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, r, nearest, why,
-                        acquired_, rendered_)) return false;
+                        acquired_, rendered_, overlay)) return false;
     layouts_[i] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
     VkPresentInfoKHR pi{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
     pi.waitSemaphoreCount = 1, pi.pWaitSemaphores = &rendered_;

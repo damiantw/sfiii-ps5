@@ -12,6 +12,8 @@ jobs:
           submodules: recursive
       - name: No disc data
         run: tools/ci/no-disc-data.sh
+      - name: Packages (Vulkan, lavapipe, SDL2)
+        run: sudo apt-get update && sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers libsdl2-dev
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSF3_PS5_DEVTOOLS=ON
       - name: Build
@@ -20,5 +22,11 @@ jobs:
         run: tools/devtools/test_sf3dev.py build/test_debug_server
       - name: Patcher quirks vs the Python patcher
         run: python3 tests/patch_quirks.py external/sfiii-native build
+      - name: Vulkan scene test (lavapipe)
+        run: build/vk_scene_test
+      - name: Vulkan menu test (lavapipe, SDL2 virtual pad)
+        env:
+          SDL_VIDEODRIVER: dummy
+        run: build/vk_menu_test
       - name: Release check (dev build must be flagged)
         run: "! tools/check-release.sh build/test_debug_server"
