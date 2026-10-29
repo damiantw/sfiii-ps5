@@ -1,6 +1,9 @@
 // SPDX-License-Identifier: MIT
 #include "display.h"
 
+#include <chrono>
+#include <cstdio>
+
 namespace sf3ps5 {
 
 #define VKD(x, what) do { VkResult r_ = (x); if (r_ != VK_SUCCESS) { why = std::string(what) + " failed: " + std::to_string(r_); return false; } } while (0)
@@ -45,13 +48,27 @@ bool Display::open(VkScene& scene, std::string& why) {
     extent_ = caps.currentExtent.width != UINT32_MAX ? caps.currentExtent : si.imageExtent;
     VkSwapchainCreateInfoKHR ci{VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR};
     ci.surface = surface_;
-    ci.minImageCount = caps.minImageCount < 2 ? 2 : caps.minImageCount;
+    // Three images: with two, any late flip on the system side holds the next frame's draw.
+    // /data/sfiii/swap2 brings back two (A/B on the console).
+    uint32_t want = 3;
+    if (FILE* f = std::fopen("/data/sfiii/swap2", "rb")) std::fclose(f), want = 2;
+    ci.minImageCount = caps.minImageCount < want ? want : caps.minImageCount;
     if (caps.maxImageCount && ci.minImageCount > caps.maxImageCount) ci.minImageCount = caps.maxImageCount;
     format_ = fmt.format;
     ci.imageFormat = fmt.format, ci.imageColorSpace = fmt.colorSpace, ci.imageExtent = extent_;
     ci.imageArrayLayers = 1, ci.imageUsage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT;
     ci.imageSharingMode = VK_SHARING_MODE_EXCLUSIVE, ci.preTransform = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
     ci.compositeAlpha = VK_COMPOSITE_ALPHA_OPAQUE_BIT_KHR, ci.presentMode = VK_PRESENT_MODE_FIFO_KHR, ci.clipped = VK_TRUE;
+    {
+        uint32_t pn = 0;
+        vkGetPhysicalDeviceSurfacePresentModesKHR(phys, surface_, &pn, nullptr);
+        std::vector<VkPresentModeKHR> pm(pn);
+        vkGetPhysicalDeviceSurfacePresentModesKHR(phys, surface_, &pn, pm.data());
+        std::fprintf(stderr, "display: %ux%u, images %u (min %u max %u), present modes:", extent_.width, extent_.height,
+                     ci.minImageCount, caps.minImageCount, caps.maxImageCount);
+        for (auto m : pm) std::fprintf(stderr, " %d", int(m));
+        std::fprintf(stderr, "\n");
+    }
     VKD(vkCreateSwapchainKHR(scene.device(), &ci, nullptr, &chain_), "vkCreateSwapchainKHR");
     uint32_t in = 0;
     VKD(vkGetSwapchainImagesKHR(scene.device(), chain_, &in, nullptr), "swapchain images");
@@ -64,16 +81,26 @@ bool Display::open(VkScene& scene, std::string& why) {
     return true;
 }
 
+// Last frame's phases, for the console profiler (fault_klog.c).
+extern "C" { unsigned long sf3_display_acquire_ns, sf3_display_draw_ns, sf3_display_queue_ns; }
+
 bool Display::frame(Rect r, bool nearest, std::string& why, const Overlay& overlay) {
     uint32_t i = 0;
+    auto t0 = std::chrono::steady_clock::now();
+    auto ns = [](auto a, auto b) { return (unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(b - a).count(); };
     VKD(vkAcquireNextImageKHR(s_->device(), chain_, UINT64_MAX, acquired_, VK_NULL_HANDLE, &i), "vkAcquireNextImageKHR");
+    auto t1 = std::chrono::steady_clock::now();
+    sf3_display_acquire_ns = ns(t0, t1);
     if (!s_->present_to(images_[i], width(), height(), layouts_[i], VK_IMAGE_LAYOUT_PRESENT_SRC_KHR, r, nearest, why,
                         acquired_, rendered_, overlay)) return false;
     layouts_[i] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+    auto t2 = std::chrono::steady_clock::now();
+    sf3_display_draw_ns = ns(t1, t2);
     VkPresentInfoKHR pi{VK_STRUCTURE_TYPE_PRESENT_INFO_KHR};
     pi.waitSemaphoreCount = 1, pi.pWaitSemaphores = &rendered_;
     pi.swapchainCount = 1, pi.pSwapchains = &chain_, pi.pImageIndices = &i;
     VKD(vkQueuePresentKHR(s_->queue(), &pi), "vkQueuePresentKHR");
+    sf3_display_queue_ns = ns(t2, std::chrono::steady_clock::now());
     return true;
 }
 

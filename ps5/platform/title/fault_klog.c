@@ -79,7 +79,7 @@ void sf3_fault_install(void) {
 #include <stdio.h>
 #include <time.h>
 static pthread_t g_sampled;
-static int g_perf;
+static int g_perf, g_perf_file, g_perf_frames_only;
 #define GEN_MAX 256
 static volatile uintptr_t g_gen_b[GEN_MAX], g_gen_e[GEN_MAX];
 void sf3_gen_range(uintptr_t base, uintptr_t size, int add) {
@@ -90,11 +90,20 @@ void sf3_gen_range(uintptr_t base, uintptr_t size, int add) {
 }
 volatile int sf3_perf_wait;   // set by the host while it waits for the frame's time or the display
 static volatile unsigned long g_n_gen, g_n_eboot, g_n_wait, g_n_other;
+static volatile unsigned long g_hist[5], g_present_ns, g_present_last, g_presents;
+extern unsigned long sf3_display_acquire_ns, sf3_display_draw_ns, sf3_display_queue_ns;
+static volatile unsigned long g_spike[8][6], g_nspike;   // work, present, frame of frames over 25 ms
+void sf3_perf_present(unsigned long ns) { g_present_ns += ns, g_present_last = ns, g_presents++; }
 static volatile unsigned long g_frames, g_work_ns, g_frame_ns, g_frame_max, g_over;
 void sf3_perf_frame(unsigned long work_ns, unsigned long frame_ns) {
     g_frames++, g_work_ns += work_ns, g_frame_ns += frame_ns;
     if (frame_ns > g_frame_max) g_frame_max = frame_ns;
     if (frame_ns > 17500000ul) g_over++;
+    if (frame_ns > 25000000ul && g_nspike < 8)
+        g_spike[g_nspike][0] = work_ns, g_spike[g_nspike][1] = g_present_last, g_spike[g_nspike][2] = frame_ns, g_spike[g_nspike][3] = sf3_display_acquire_ns,
+        g_spike[g_nspike][4] = sf3_display_draw_ns, g_spike[g_nspike][5] = sf3_display_queue_ns, g_nspike++;
+    g_present_last = 0;
+    g_hist[frame_ns < 15000000ul ? 0 : frame_ns <= 17500000ul ? 1 : frame_ns <= 25000000ul ? 2 : frame_ns <= 34000000ul ? 3 : 4]++;
 }
 extern char __sf3_text_start[], __sf3_text_end[];   // ps5-title.ld
 static void on_sample(int sig, siginfo_t* si, void* ctx) {
@@ -121,7 +130,7 @@ static void perf_report(void) {
     unsigned long wk = g_work_ns, fr = g_frame_ns, mx = g_frame_max, ov = g_over;
     g_n_gen = g_n_eboot = g_n_wait = g_n_other = 0, g_frames = g_work_ns = g_frame_ns = g_frame_max = g_over = 0;
     unsigned long t = g + e + w + o, busy = g + e + o;
-    char line[320];
+    char line[1024];
     snprintf(line, sizeof line,
              "[sf3 perf] %lu frames, frame %.2f ms avg %.2f max, work %.2f ms avg, %lu over 17.5 ms; "
              "samples %lu: x64 %.1f%% eboot %.1f%% other %.1f%% wait %.1f%%; x64 share of busy %.1f%%\n",
@@ -129,6 +138,27 @@ static void perf_report(void) {
              t ? 100.0 * g / t : 0.0, t ? 100.0 * e / t : 0.0, t ? 100.0 * o / t : 0.0, t ? 100.0 * w / t : 0.0,
              busy ? 100.0 * g / busy : 0.0);
     sceKernelDebugOutText(0, line);
+    {
+        char h[160];
+        snprintf(h, sizeof h, "[sf3 perf] frame ms histogram: <15 %lu, 15-17.5 %lu, 17.5-25 %lu, 25-34 %lu, >34 %lu\n",
+                 g_hist[0], g_hist[1], g_hist[2], g_hist[3], g_hist[4]);
+        g_hist[0] = g_hist[1] = g_hist[2] = g_hist[3] = g_hist[4] = 0;
+        char q[400];
+        int k = snprintf(q, sizeof q, "[sf3 perf] present %.2f ms avg over %lu; spikes (work/present/frame ms [acquire/draw/queue]):",
+                         g_presents ? g_present_ns / 1e6 / g_presents : 0.0, g_presents);
+        for (unsigned long j = 0; j < g_nspike && k < 300; ++j)
+            k += snprintf(q + k, sizeof q - k, " %.1f/%.1f/%.1f[%.1f/%.1f/%.1f]", g_spike[j][0] / 1e6, g_spike[j][1] / 1e6, g_spike[j][2] / 1e6,
+                          g_spike[j][3] / 1e6, g_spike[j][4] / 1e6, g_spike[j][5] / 1e6);
+        snprintf(q + k, sizeof q - k, "\n");
+        g_present_ns = g_presents = g_nspike = 0;
+        sceKernelDebugOutText(0, q);
+        size_t n = strlen(line);
+        if (n + strlen(h) < sizeof line) strcpy(line + n, h);
+        n = strlen(line);
+        if (n + strlen(q) < sizeof line) strcpy(line + n, q);
+        sceKernelDebugOutText(0, h);
+    }
+    if (!g_perf_file) return;   // "perf file": also append to perf.txt (a /data write every 10 s)
     FILE* fp = fopen("/data/sfiii/perf.txt", "a");
     if (fp) fputs(line, fp), fclose(fp);
 }
@@ -137,8 +167,8 @@ static void* sampler(void* arg) {
     if (g_perf) {
         for (unsigned long i = 1;; ++i) {
             usleep(1000);
-            pthread_kill(g_sampled, SIGUSR2);
-            if (i % 10000 == 0) perf_report();
+            if (!g_perf_frames_only) pthread_kill(g_sampled, SIGUSR2);
+            if (i % 7000 == 0) perf_report();
         }
     }
     for (int i = 0; i < 600; ++i) { usleep(500000); pthread_kill(g_sampled, SIGUSR2); }
@@ -148,7 +178,8 @@ void sf3_sample_start(void) {
     int fd = open("/data/sfiii/sample.enable", O_RDONLY);
     if (fd < 0) return;
     char buf[16] = {0};
-    if (read(fd, buf, sizeof buf - 1) > 0 && strstr(buf, "perf")) g_perf = 1;
+    if (read(fd, buf, sizeof buf - 1) > 0 && strstr(buf, "perf")) g_perf = 1, g_perf_file = strstr(buf, "file") != NULL,
+        g_perf_frames_only = strstr(buf, "frames") != NULL;   // "perf frames": frame times only, no sampling
     close(fd);
     struct sigaction sa;
     memset(&sa, 0, sizeof sa);

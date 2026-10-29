@@ -16,7 +16,7 @@ list(APPEND _rs ${SF3_PS5_ROOT}/src/ps5/loader_ps5.cpp)
 set_property(TARGET recomp PROPERTY SOURCES ${_rs})
 set(_p ${SF3_PS5_ROOT}/ps5/platform)
 add_executable(sf3ps5 ${SF3_PS5_ROOT}/src/host/host_runtime.cpp ${SATURN_RUNTIME}/src/host/settings.cpp
-    ${_p}/crt/start.c ${_p}/crt/cxx_new.cpp ${_p}/title/fpenv.c ${_p}/title/libc_gaps.c ${_p}/title/thread_stack.c ${_p}/title/locale_gaps.c ${_p}/title/path_shims.c ${_p}/title/dir_shims.c ${_p}/title/heap.c ${_p}/title/fault_klog.c
+    ${_p}/crt/start.c ${_p}/crt/cxx_new.cpp ${_p}/title/fpenv.c ${_p}/title/libc_gaps.c ${_p}/title/thread_stack.c ${_p}/title/locale_gaps.c ${_p}/title/path_shims.c ${_p}/title/dir_shims.c ${_p}/title/heap.c ${_p}/title/stderr_fast.c ${_p}/title/fault_klog.c
     ${_p}/vk_dispatch.cpp $<TARGET_OBJECTS:sf3_interp> $<TARGET_OBJECTS:sf3_x64_set>)
 target_include_directories(sf3ps5 PRIVATE ${SF3_PS5_ROOT}/src ${_p} ${SATURN_RUNTIME}/include ${SATURN_RUNTIME}/include/saturn
     ${SATURN_RUNTIME}/src/machine ${SATURN_RUNTIME}/src/video ${SATURN_RUNTIME}/src)
@@ -38,6 +38,6 @@ file(GLOB _sce ${_l}/*.so)
 execute_process(COMMAND clang --print-resource-dir OUTPUT_VARIABLE _res OUTPUT_STRIP_TRAILING_WHITESPACE)
 string(JOIN " " _scel ${_sce})
 # the malloc family goes to the title heap (ps5/platform/title/heap.c)
-set(_wrap "--wrap=malloc --wrap=free --wrap=calloc --wrap=realloc --wrap=posix_memalign --wrap=aligned_alloc")
+set(_wrap "--wrap=malloc --wrap=free --wrap=calloc --wrap=realloc --wrap=posix_memalign --wrap=aligned_alloc --wrap=vfprintf --wrap=fprintf --wrap=fputs --wrap=fwrite --wrap=fputc --wrap=fflush")
 set_property(TARGET sf3ps5 PROPERTY LINK_FLAGS
   "${_wrap} ${SF3_PS5_STUBS}/libSceAgc.so ${SF3_PS5_STUBS}/libSceAgcDriver.so -L${_l} --whole-archive ${RADV_ARCHIVE} --no-whole-archive --start-group ${_l}/libc++.a ${_l}/libc++abi.a ${_l}/libunwind.a ${_res}/lib/linux/libclang_rt.builtins-x86_64.a --end-group --as-needed ${_scel}")

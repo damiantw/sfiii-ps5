@@ -61,6 +61,11 @@ struct ChdImage {
     std::shared_ptr<ByteSource> bin;
 };
 ChdImage open_chd(const std::string& path);
+// Writes the CHD out as chdman extractcd would (dir/disc.bin + dir/disc.cue) for a reader that
+// only takes CUE sheets, and returns the CUE path. A complete earlier copy (the CUE is written
+// last, the BIN's size checked) is reused. `progress` gets done/total bytes. Throws DiscError.
+std::string extract_chd(const std::string& chd_path, const std::string& dir,
+                        const std::function<void(uint64_t, uint64_t)>& progress = {});
 
 struct Record {
     std::string name;     // UTF-8, without ";1"
