@@ -9,6 +9,7 @@
 #include "window_screen.h"
 #endif
 #include "menu/jobs.h"
+#include "prepare/prepare.h"
 #include "patch/fetch_sce.h"
 #include "menu/pad_sdl2.h"
 #include "../vulkan/display.h"
@@ -22,6 +23,14 @@
 #include <memory>
 #include <string>
 
+#ifndef SF3_PS5_PROFILES_DIR   // the shipped revision profiles (sfiii-native profiles/*.json)
+#if defined(SF3_PS5_CONSOLE)
+#define SF3_PS5_PROFILES_DIR "/app0/profiles"
+#else
+#define SF3_PS5_PROFILES_DIR "profiles"
+#endif
+#endif
+
 #ifndef SF3_PS5_BUILD_ID
 #define SF3_PS5_BUILD_ID "dev"
 #endif
@@ -32,6 +41,9 @@ using namespace sf3;
 // code the recompiler missed runs interpreted instead of stopping the game. Weak: a tree built
 // without it keeps the runtime's fatal stop.
 void sf3_interp_fallback_install() __attribute__((weak));
+// A generic game build's module set loader (sfiii-native native/recomp/gen/x64_set.cpp): installs the
+// code caches the generator made from the user's disc. Absent in a build with a generated tree.
+bool sf3_x64_install_set(const std::string& dir, std::string& why) __attribute__((weak));
 
 namespace {
 host::PlatformHost* g_host = nullptr;
@@ -148,6 +160,7 @@ int main(int argc, char** argv) {
     menu::Menu m(rt, settings, jobs, settings_path);
     menu::SdlPad pad;
     std::function<menu::PadState()> read = [&] { SDL_GameControllerUpdate(); return pad.read(); };
+    bool preparing = false;   // a disc's first launch: the script's clock waits for the game
 #if !defined(SF3_PS5_CONSOLE)
     // PC test driver (script.h)
     const char* gen_env = std::getenv("SF3_PS5_GEN");
@@ -162,6 +175,7 @@ int main(int argc, char** argv) {
     if (scripted) read = [&, base = read] {
         menu::PadState p = base();
         p.connected = true;
+        if (preparing) return p;
         for (auto& st : script.tick(p)) {
             std::fprintf(stderr, "script %d/%ld: %s %s\n", gen, script.now(), st.op.c_str(), st.arg.c_str());
             if (st.op == "save" || st.op == "load") {
@@ -225,6 +239,48 @@ int main(int argc, char** argv) {
     cfg.save = settings.data_dir + "/saves/backup.bin";   // one backup memory, shared by the scenarios
     cfg.settings = "-";
     cfg.out = settings.data_dir + "/logs";
+    if (sf3_x64_install_set) {   // a generic build: the game's code comes from this disc (src/prepare)
+        std::string set_dir;
+        if (const char* set = std::getenv("SF3_X64_SET")) {
+            set_dir = set;   // a set made elsewhere (dev path; see docs/pc-run.md)
+        } else {
+            const char* pd = std::getenv("SF3_PROFILES");
+            std::string profiles = pd ? pd : SF3_PS5_PROFILES_DIR;
+            prepare::Result pr;
+            jobs.start_prepare("Preparing " + disc::path_name(args.cue), [&](const auto& progress) {
+                pr = prepare::prepare_disc(args.cue, settings.data_dir, profiles, progress);
+                if (!pr.ok) throw std::runtime_error(pr.why);
+            });
+            m.open(menu::Page::Prepare);
+            preparing = true;
+            while (jobs.busy()) {
+                if (!ph.ui_frame()) { std::fprintf(stderr, "screen: %s\n", ph.error().c_str()); return 1; }
+#if !defined(SF3_PS5_CONSOLE)
+                if (!offscreen) SDL_Delay(16);
+#endif
+            }
+            jobs.join();
+            preparing = false;
+            if (!pr.ok) {   // leave the reason on screen until the player goes back
+                std::fprintf(stderr, "prepare: %s\n", pr.why.c_str());
+                for (int i = 0; i < (offscreen ? 1 : 600) && ph.ui_frame(); i++) {
+#if !defined(SF3_PS5_CONSOLE)
+                    if (!offscreen) SDL_Delay(16);
+#endif
+                }
+                if (!offscreen) { g_next = {}, g_relaunch = true; run_over(1); }   // back to the launcher
+                return 1;
+            }
+            std::fprintf(stderr, "prepare: %s%s\n", pr.cached ? "cached " : "", pr.set_dir.c_str());
+            set_dir = pr.set_dir;
+            m.close();
+        }
+        std::string why;
+        if (!sf3_x64_install_set(set_dir, why)) { std::fprintf(stderr, "module set: %s\n", why.c_str()); return 1; }
+    } else if (std::getenv("SF3_X64_SET")) {
+        std::fprintf(stderr, "SF3_X64_SET: this build has no module set loader\n");
+        return 1;
+    }
     sat_set_run_over_hook(run_over);
     if (sf3_interp_fallback_install) sf3_interp_fallback_install();
     int code = saturn_main(cfg);

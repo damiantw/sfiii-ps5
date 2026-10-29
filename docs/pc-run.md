@@ -35,6 +35,31 @@ With no `--cue` it opens the launcher. Settings, saves (`saves/backup.bin`) and 
 A disc only runs if the code cache was generated from that same disc. A cache built from the
 translated Scenario 1 disc stops on any other image with "not an entry of an active module".
 
+## Generic build (no disc-derived code)
+
+Building against sfiii-native's `native/recomp/generic` instead of a generated tree gives an app
+with no code made from a disc, which is the build the console title uses:
+
+```sh
+cmake -G Ninja -S external/sfiii-native/native/recomp/generic -B <build dir> -DCMAKE_CXX_COMPILER=clang++ \
+  -DSATURN_RUNTIME=<saturn-recomp>/runtime \
+  -DSATURN_EXTRA=<sfiii-ps5>/tools/pc/saturn_extra.cmake -DSF3_PS5_ROOT=<sfiii-ps5>
+ninja -C <build dir> sf3ps5
+```
+
+On the first launch of each disc it shows a **Preparing** screen. It reads the disc, matches a
+profile, runs discovery and the x64 lowering in C++ (no Python), and writes the module set to
+`<data>/cache/<content id>-abi3/`. `<data>/cache/images.tsv` maps an image's size and mtime to
+its content ID, so later launches skip the work. Delete `<data>/cache` to redo it. On the
+console this is `/data/shiningforceiii/cache`.
+
+| Variable | Use |
+| --- | --- |
+| `SF3_X64_SET=<dir>` | use a set made elsewhere and skip the Preparing step (dev path) |
+| `SF3_PROFILES=<dir>` | profile JSONs (default: the submodule's `profiles/`; `/app0/profiles` on the console) |
+
+`build/sf3prepare IMAGE DATA_DIR PROFILES_DIR` runs the same step on its own.
+
 ## One disc per process
 
 Once a run stops, the runtime writes the backup memory and states, then ends the process with

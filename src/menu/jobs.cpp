@@ -152,6 +152,16 @@ void Jobs::run(JobKind kind, const std::string& title, std::function<void()> bod
     });
 }
 
+void Jobs::start_prepare(const std::string& title, PrepareBody body) {
+    run(JobKind::Prepare, title, [this, body] {
+        std::string last;
+        body([this, &last](double p, const std::string& what) {
+            progress(p);
+            if (what != last) { last = what; log(what); }
+        });
+    });
+}
+
 void Jobs::start_scan(const std::string& dir) {
     run(JobKind::Scan, "Scanning " + dir, [this, dir] {
         disc::ScanOptions o;
