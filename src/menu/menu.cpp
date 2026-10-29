@@ -109,13 +109,15 @@ void Menu::job_status() {
 
 void Menu::launcher() {
     auto r = jobs_.scan_result();
+    auto st = jobs_.status();
+    bool scanning = st.running && st.title.rfind("Scanning", 0) == 0;   // a slot is only "not found" once the scan ends
     ImGui::TextDisabled("Discs in %s", s_.data_dir.c_str());
     for (int i = 1; i <= 4; i++) {
         ImGui::PushID(i);
         int c = r.slot[i];
         ImGui::Text("%-13s", slot_label(i));
         ImGui::SameLine();
-        if (c < 0) { ImGui::TextDisabled("not found"); ImGui::PopID(); continue; }
+        if (c < 0) { ImGui::TextDisabled(scanning ? "scanning..." : "not found"); ImGui::PopID(); continue; }
         auto& cand = r.all[size_t(c)];
         ImGui::Text("%s  [%s]", disc::path_name(cand.path).c_str(), disc::state_name(cand.cls.state));
         ImGui::SameLine();
@@ -135,6 +137,7 @@ void Menu::launcher() {
     if (ImGui::Button("Rescan")) jobs_.start_scan(s_.data_dir);
     if (!diag_.empty()) ImGui::TextDisabled("%s", diag_.c_str());
     ImGui::EndDisabled();
+    ImGui::TextDisabled("frame %d", ImGui::GetFrameCount());   // a moving number: the screen is live
 }
 
 void Menu::patch_page() {

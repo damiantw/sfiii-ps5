@@ -29,6 +29,11 @@ void AudioOut::set_speed(int s) {
     rs_.set_ratio(double(kInRate) * speed_ / kOutRate);
 }
 
+AudioOut::Stats AudioOut::stats() const {
+    std::lock_guard<std::mutex> l(mu_);
+    return stats_;
+}
+
 int AudioOut::queued_ms() const {
     std::lock_guard<std::mutex> l(mu_);
     return int(queue_.size() / 2 * 1000 / kOutRate);
@@ -38,6 +43,7 @@ void AudioOut::push(const int16_t* lr, int frames) {
     if (!run_ || frames <= 0) return;
     std::deque<int16_t> out;
     std::lock_guard<std::mutex> l(mu_);
+    stats_.count(lr, frames);
     rs_.run(lr, frames, volume_, out);
     if (queue_.empty()) { ++stats_.underruns; queue_.insert(queue_.end(), size_t(kOutRate) * kLeadMs / 1000 * 2, 0); }
     if ((queue_.size() + out.size()) / 2 * 1000 / kOutRate > size_t(kMaxMs)) { ++stats_.dropped; return; }

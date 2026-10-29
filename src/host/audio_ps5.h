@@ -4,6 +4,7 @@
 // dry. The queue limits match audio_sdl2.h: `lead` ms of silence first after a dry spell, and a
 // chunk that would push it past `max` ms is dropped. MIT, see LICENSE.
 #pragma once
+#include "audio_stats.h"
 #include <atomic>
 #include <cstdint>
 #include <deque>
@@ -33,8 +34,8 @@ public:
     void set_volume(float v) { volume_ = v < 0 ? 0 : v > 1 ? 1 : v; }
     void pause(bool p) { paused_ = p; }
     int queued_ms() const;
-    struct Stats { int underruns = 0, dropped = 0; };
-    Stats stats() const { return stats_; }
+    using Stats = AudioStats;
+    Stats stats() const;
     ~AudioOut();
 private:
     void loop();

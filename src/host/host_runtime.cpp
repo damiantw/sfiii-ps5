@@ -27,6 +27,8 @@
 #include "devtools/debug_server.h"
 #endif
 #include <cstdlib>
+#include <cmath>
+#include <chrono>
 #include <filesystem>
 #include <memory>
 #include <string>
@@ -183,11 +185,30 @@ bool host_wants_frame() {
 uint16_t host_pad(int slot) { return g_host ? g_host->pad(slot) : 0; }
 bool host_pad_connected(int slot) { return g_host && g_host->pad_connected(slot); }
 bool host_audio_open() { return g_have_audio; }
-void host_audio_push(const int16_t* lr, int frames) { if (g_host) g_host->audio(lr, frames); }
+#if defined(SF3_PS5_CONSOLE)
+extern "C" int sceKernelDebugOutText(int channel, const char* text);
+#endif
+void host_audio_report();
+void host_audio_push(const int16_t* lr, int frames) {
+    if (g_host) g_host->audio(lr, frames);
+    static auto next = std::chrono::steady_clock::now() + std::chrono::seconds(10);
+    if (auto now = std::chrono::steady_clock::now(); now >= next) next = now + std::chrono::seconds(30), host_audio_report();
+}
+// The summary goes to stderr, /data/sfiii/audio.txt (kept across a relaunch, which starts stderr
+// again) and on the console the kernel log. "loud" counts frames with a channel above 64/32768.
 void host_audio_report() {
     if (!g_audio) return;
     auto s = g_audio->stats();
-    std::fprintf(stderr, "audio: 48 kHz, %d underruns, %d chunks dropped\n", s.underruns, s.dropped);
+    char m[200];
+    double rms = s.frames ? std::sqrt(s.sumsq / double(2 * s.frames)) : 0;
+    std::snprintf(m, sizeof m, "audio: 48 kHz, %d underruns, %d chunks dropped, %lld frames in, %lld loud, peak %d, rms %.1f\n",
+                  s.underruns, s.dropped, s.frames, s.loud, s.peak, rms);
+    std::fputs(m, stderr);
+    std::fflush(stderr);
+#if defined(SF3_PS5_CONSOLE)
+    sceKernelDebugOutText(0, m);
+    if (FILE* f = std::fopen("/data/sfiii/audio.txt", "a")) { std::fputs(m, f); std::fclose(f); }
+#endif
 }
 
 #if defined(SF3_PS5_CONSOLE)
