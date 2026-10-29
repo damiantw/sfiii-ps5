@@ -72,6 +72,12 @@ wizard, then choose one of:
 
 The launcher picks a translated image over the original for each slot.
 
+### First launch of a disc
+The first time you start each disc, the app shows **Preparing** while it builds that disc's
+game code from the disc itself (once per disc, in C++ on the console). The result is kept in
+`/data/shiningforceiii/cache/`, so later launches start straight away. Delete that folder to
+rebuild it. Nothing made from a disc ships with the app. See [docs/pc-run.md](docs/pc-run.md).
+
 ### Settings
 They are stored in `/data/shiningforceiii/settings.txt`: speed, fast-forward hold, 4:3/16:9,
 sharp pixels, menu size, download opt-in, add-ons, and the patch mode.
@@ -102,6 +108,7 @@ PC tools (the same code the console runs):
 build/sf3disc scan /path/to/discs                 # which disc fills which slot
 build/sf3disc identify disc.cue|disc.chd
 build/sf3disc probe disc.cue [EXTRACT_DIR [PROFILES_DIR]]  # content manifest + ID (as sfiii-native tools/probe.py), root .BIN files, matching profile
+build/sf3prepare disc.cue DATA_DIR PROFILES_DIR      # the first-launch step: module set in DATA_DIR/cache/
 build/sf3patch fetch --dest translation           # opt-in download (curl): SF3Patch.exe + V25+ add-ons
 build/sf3patch list  disc.cue --package translation/SF3Patch.exe --addons translation/V25+
 build/sf3patch patch disc.chd --package translation/SF3Patch.exe --addons translation/V25+ -o out.bin
