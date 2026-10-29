@@ -1,0 +1,73 @@
+# Running the PS5 app on PC
+
+`src/host/host_runtime.cpp` is the PS5 app's `main`. On Linux it builds against a generated
+saturn-recomp game tree and runs the same host, menu and pacer as on the console, in a window
+(SDL2) or offscreen. The generated tree comes from your own disc, so the build is game-derived:
+keep it outside this repo and never commit or share it.
+
+## Build
+
+```sh
+cmake -G Ninja -S <generated tree> -B <build dir> -DCMAKE_CXX_COMPILER=clang++ \
+  -DSATURN_RUNTIME=<saturn-recomp>/runtime \
+  -DSATURN_EXTRA=<sfiii-ps5>/tools/pc/saturn_extra.cmake -DSF3_PS5_ROOT=<sfiii-ps5>
+ninja -C <build dir> sf3ps5
+```
+
+`tools/pc/saturn_extra.cmake` adds this repo to the generated build and links the runtime's
+machine with our host instead of the runtime's SDL3 host.
+
+## Run
+
+```sh
+SF3_X64_DIR=<code cache> sf3ps5 [--cue <image.cue>]
+```
+
+With no `--cue` it opens the launcher. Settings, saves (`saves/backup.bin`) and states
+(`states/<disc>/slotN.sf3state`) go in `SF3_PS5_DATA` (default `./data`).
+
+| Variable | Use |
+| --- | --- |
+| `SF3_PS5_DATA` | data folder |
+| `SF3_PS5_OFFSCREEN=1` | no window (CI, headless boxes) |
+| `SF3_PS5_SCRIPT=<file>` | the test driver below |
+
+A disc only runs if the code cache was generated from that same disc. A cache built from the
+translated Scenario 1 disc stops on any other image with "not an entry of an active module".
+
+## One disc per process
+
+The runtime ends the process with `_Exit` once a run stops, so `saturn_main` never returns. On
+PC the app forks first, before any thread exists. The child runs everything, and the parent
+waits. When a disc is chosen in the menu, or the player quits to the launcher, the child sends
+the request down a pipe before it stops the machine. After the child has exited (backup memory
+and states already written), the parent `execv`s itself with the new arguments.
+
+On the console there is no fork yet. The relaunch after `saturn_main` is never reached there,
+so for now choosing another disc or quitting exits the app. Fixing it needs a hook in the
+runtime's stop path, after the backup memory is written.
+
+## Test driver
+
+`SF3_PS5_SCRIPT` replaces the pad with a script. Each line is `GEN TICK op args`. GEN is the
+process generation: 0, then +1 at each relaunch (`SF3_PS5_GEN`). TICK counts host frames.
+
+| op | does |
+| --- | --- |
+| `press BUTTONS [TICKS]` | holds pad buttons (`cross`, `options`, `r2`, `down`, ...) |
+| `save N` / `load N` | queues a save or load of state slot N |
+| `menu` | opens the in-game menu |
+| `launch IMAGE` | chooses a disc, as the launcher does |
+| `quit` | quits to the launcher |
+| `shot FILE.ppm` | writes the current frame |
+| `exit` | ends the run, with no relaunch |
+
+## Tested (translated Scenario 1, x64 cache, offscreen)
+
+- Boot to the title, 2001 VBlanks in 33.4 s (paced at 1x). Sound at 48 kHz, not silent.
+- Options as START and d-pad moves on the title menu. The menu overlay opens.
+- Save to slot 0 and load it, in the same run and again after a relaunch.
+- R2 fast-forward moves the game on.
+- Choosing a disc in the menu ends the run and relaunches into it (generation 1). Quit to the
+  launcher relaunches into the launcher (generation 2), and a launch from there boots the disc
+  in the same process.

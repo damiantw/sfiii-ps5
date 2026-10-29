@@ -97,7 +97,8 @@ public:
     int frames_shown() const { return shown_; }
     int speed() const { return pacer_.speed(); }
     std::function<void()> on_menu_frame;   // tests: drive the pad inside the in-game menu loop
-    std::function<void(Pacer::Clock::duration)> sleep;   // default std::this_thread::sleep_for
+    std::function<void(Pacer::Clock::duration)> sleep;
+    Pacer::Clock::duration menu_frame_floor{};   // PC window: no vsync, so the menu loop waits this long a frame   // default std::this_thread::sleep_for
 
 private:
     void input();

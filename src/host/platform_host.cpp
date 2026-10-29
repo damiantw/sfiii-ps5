@@ -90,6 +90,7 @@ void PlatformHost::present(const uint32_t* px, int w, int h, int origin_x, int n
     while (menu_.visible() && menu_.in_game() && !stopping_) {
         if (on_menu_frame) on_menu_frame();
         if (!ui_frame()) break;
+        if (menu_frame_floor.count() && sleep) sleep(menu_frame_floor);
     }
 }
 
