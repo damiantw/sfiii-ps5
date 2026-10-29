@@ -51,3 +51,10 @@ deterministic as `--agent`: the same presses at the same VBlanks give the same r
 
 ## Compile check against the runtime
 `cmake -DSF3_PS5_RUNTIME_DIR=<patched saturn-recomp> [-DSF3_PS5_DEVTOOLS=ON]` builds `runtime_agent.cpp` against the real runtime headers. In release mode the object has no `devtools_` symbols. In dev mode it references `devtools_start/poll`, `state_request_save` and `smpc_press`. `load PATH` loads a native state live at the next safe moment (fork PR #105, runtime patch), and `loaded` reports `done 1` (loaded) or `done -1` (no safe moment came within 120 VBlanks).
+
+## Launcher (dev builds, PS5)
+
+Build with `SF3_PS5_DEVTOOLS=ON tools/ps5/build-title.sh`. The launcher reads `/data/sfiii/devtools.enable` too:
+
+- `port=N`: the launcher listens for the same protocol, and `pad [N.]BUTTON+...` holds menu buttons (UP DOWN LEFT RIGHT CROSS CIRCLE SQUARE TRIANGLE L1 R1 OPTIONS TOUCHPAD) for N frames. A title's bind is refused with EACCES on current firmware, and the launcher's last line shows the result.
+- `launch=/data/shiningforceiii/DIR/NAME.cue`: start that disc right away with no input, for automated runs.

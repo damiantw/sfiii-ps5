@@ -22,10 +22,92 @@
 #include "saturn.h"
 #include "host/host.h"
 #include <cstdio>
+#if SF3_PS5_DEVTOOLS
+#include "devtools/debug_server.h"
+#endif
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
 #include <string>
+#include <cctype>
+#include <cerrno>
+#include <cstring>
+
+#if SF3_PS5_DEVTOOLS
+// The debug server in the launcher (dev builds, /data/sfiii/devtools.enable): "pad [N.]BUTTON+..."
+// holds menu buttons for N frames (default 6), so automated runs do not depend on a controller.
+namespace {
+uint64_t g_dev_frames = 0, g_dev_until = 0;
+sf3::menu::PadState g_dev_pad;
+sf3::menu::Menu* g_dev_menu = nullptr;
+std::string g_dev_status, g_dev_launch;
+uint64_t dev_vblanks() { return g_dev_frames; }
+bool dev_press(const std::string& spec, std::string& err) {
+    sf3::menu::PadState p;
+    std::string rest = spec;
+    uint64_t n = 6;
+    if (size_t dot = rest.find('.'); dot != std::string::npos) { n = std::strtoull(rest.c_str(), nullptr, 10); rest = rest.substr(dot + 1); }
+    size_t i = 0;
+    while (i <= rest.size()) {
+        size_t j = rest.find('+', i);
+        std::string b = rest.substr(i, j == std::string::npos ? std::string::npos : j - i);
+        for (auto& c : b) c = char(std::toupper((unsigned char)c));
+        if (b == "UP") p.up = true; else if (b == "DOWN") p.down = true;
+        else if (b == "LEFT") p.left = true; else if (b == "RIGHT") p.right = true;
+        else if (b == "CROSS" || b == "A") p.cross = true; else if (b == "CIRCLE" || b == "B") p.circle = true;
+        else if (b == "SQUARE") p.square = true; else if (b == "TRIANGLE") p.triangle = true;
+        else if (b == "L1") p.l1 = true; else if (b == "R1") p.r1 = true;
+        else if (b == "OPTIONS" || b == "START") p.options = true; else if (b == "TOUCHPAD") p.touchpad = true;
+        else if (b != "NONE") return err = "unknown button " + b, false;
+        if (j == std::string::npos) break;
+        i = j + 1;
+    }
+    g_dev_pad = p, g_dev_until = g_dev_frames + n;
+    return true;
+}
+std::string dev_info() { return "sfiii-ps5 launcher" + (g_dev_menu ? " " + g_dev_menu->status_text() : std::string()); }
+sf3::menu::PadState launcher_dev_pad(sf3::menu::PadState p) {
+    ++g_dev_frames;
+    if (g_dev_frames > g_dev_until) return p;
+    const auto& d = g_dev_pad;
+    p.up |= d.up, p.down |= d.down, p.left |= d.left, p.right |= d.right;
+    p.cross |= d.cross, p.circle |= d.circle, p.square |= d.square, p.triangle |= d.triangle;
+    p.l1 |= d.l1, p.r1 |= d.r1, p.options |= d.options, p.touchpad |= d.touchpad;
+    p.connected = true;
+    return p;
+}
+template <class Rt> void launcher_dev_start(sf3::menu::Menu& m, Rt&) {
+    g_dev_menu = &m;
+    errno = 0;
+    DevConfig c = devtools_read_config("/data/sfiii/devtools.enable");
+    int read_errno = errno;
+    DevHooks h{};
+    h.vblanks = dev_vblanks, h.press = dev_press, h.info = dev_info;
+    h.ld8 = [](uint32_t) -> uint8_t { return 0; };
+    h.st8 = [](uint32_t, uint8_t) {};
+    h.frame = [](uint32_t&, uint32_t&, std::string&) { return false; };
+    h.save_state = h.load_state = [](const std::string&, std::string& e) { return e = "not in game", false; };
+    h.save_status = h.load_status = [] { return std::string("done 0"); };
+    errno = 0;
+    bool ok = devtools_start(c, h);
+    char b[96];
+    if (!c.enabled) std::snprintf(b, sizeof b, " | devtools off (enable file errno %d)", read_errno);
+    else std::snprintf(b, sizeof b, ok ? " | devtools on :%d" : " | devtools :%d failed, errno %d", c.port, errno);
+    g_dev_status = b;
+    // launch=CUE: start that disc without input (automated runs when no listener is allowed)
+    if (FILE* f = std::fopen("/data/sfiii/devtools.enable", "r")) {
+        char l[1024];
+        while (std::fgets(l, sizeof l, f))
+            if (!std::strncmp(l, "launch=", 7)) {
+                std::string v(l + 7);
+                while (!v.empty() && (v.back() == '\n' || v.back() == '\r')) v.pop_back();
+                g_dev_launch = v;
+            }
+        std::fclose(f);
+    }
+}
+}  // namespace
+#endif
 
 #ifndef SF3_PS5_PROFILES_DIR   // the shipped revision profiles (sfiii-native profiles/*.json)
 #if defined(SF3_PS5_CONSOLE)
@@ -172,7 +254,20 @@ int main(int argc, char** argv) {
     menu::Menu m(rt, settings, jobs, settings_path);
 #if defined(SF3_PS5_CONSOLE)
     menu::ScePad pad;
-    std::function<menu::PadState()> read = [&] { return pad.read(); };
+    std::function<menu::PadState()> read = [&] {
+        menu::PadState p = pad.read();
+        if (!in_game) {
+#if SF3_PS5_DEVTOOLS
+            m.set_diag(pad.diag() + g_dev_status);
+#else
+            m.set_diag(pad.diag());
+#endif
+        }
+#if SF3_PS5_DEVTOOLS
+        if (!in_game) p = launcher_dev_pad(p);
+#endif
+        return p;
+    };
 #else
     menu::SdlPad pad;
     std::function<menu::PadState()> read = [&] { SDL_GameControllerUpdate(); return pad.read(); };
@@ -233,7 +328,14 @@ int main(int argc, char** argv) {
     if (!in_game) {   // the launcher: until a disc is chosen
         m.set_in_game(false);
         m.open(menu::Page::Launcher);
+#if SF3_PS5_DEVTOOLS
+        launcher_dev_start(m, rt);
+        if (!g_dev_launch.empty()) g_launch_cue = g_dev_launch;
+#endif
         while (g_launch_cue.empty()) {
+#if SF3_PS5_DEVTOOLS
+            devtools_poll();
+#endif
             if (!ph.ui_frame()) { std::fprintf(stderr, "screen: %s\n", ph.error().c_str()); return 1; }
             if (offscreen) continue;
 #if !defined(SF3_PS5_CONSOLE)
@@ -241,6 +343,9 @@ int main(int argc, char** argv) {
 #endif
         }
         args.cue = g_launch_cue;
+#if SF3_PS5_DEVTOOLS
+        devtools_stop();   // the game's runtime_agent.cpp opens the server again
+#endif
     }
     rt.set_disc_id(runtime::disc_identity(args.cue));
     setenv("SF3_STATE_ID", (std::string(SF3_PS5_BUILD_ID) + ":" + rt.disc_id()).c_str(), 1);
