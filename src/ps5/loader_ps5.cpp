@@ -9,6 +9,7 @@
 
 extern "C" int sceKernelMprotect(const void* addr, size_t len, int prot);
 extern "C" volatile uintptr_t sf3_fault_gen_base, sf3_fault_gen_size;   // fault_klog.c
+extern "C" void sf3_gen_range(uintptr_t base, uintptr_t size, int add);  // fault_klog.c (profiler)
 
 namespace sf3::gen {
 
@@ -34,12 +35,13 @@ bool load_cache(const Cache& c, const ServiceTable& svc, LoadedCode& out, std::s
     }
     out.base = m, out.size = size, out.funcs.clear();
     sf3_fault_gen_base = reinterpret_cast<uintptr_t>(m), sf3_fault_gen_size = size;
+    sf3_gen_range(reinterpret_cast<uintptr_t>(m), size, 1);
     for (auto& e : c.funcs) out.funcs.push_back({e.addr, reinterpret_cast<SH2Func>(b + e.code_off)});
     return true;
 }
 
 void unload(LoadedCode& l) {
-    if (l.base) munmap(l.base, l.size);
+    if (l.base) sf3_gen_range(reinterpret_cast<uintptr_t>(l.base), l.size, 0), munmap(l.base, l.size);
     l = {};
 }
 

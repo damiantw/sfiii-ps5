@@ -32,7 +32,9 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   (`src/vulkan/menu_vk`) on top of the game picture, and the gamepad drives it: touchpad or
   Options opens and closes it, L1/R1 switch tabs, the d-pad or left stick moves, Cross picks,
   Circle goes back. While it is closed, holding R2 fast-forwards. Tested on Linux (lavapipe and an
-  SDL2 virtual controller), not yet on the console. `src/runtime/runtime_host` connects it to
+  SDL2 virtual controller) and on the console (save, load and slot switching, 1x/2x/3x and R2,
+  4:3 and 16:9). The slot list shows each slot's age; Save and Load close the menu so the
+  machine reaches its safe point, and "slot N saved/loaded" shows when it is done. `src/runtime/runtime_host` connects it to
   the saturn-recomp runtime: save/load go to the runtime's native states (one folder per disc,
   10 slots; the result shows in the menu once the runtime has written or loaded the state at its
   next safe moment), the game pauses while the overlay is open, and the speed and R2
@@ -192,6 +194,13 @@ A PS5 title may not use libc `opendir`/`realpath`/`getcwd` (EPERM). The disc sca
 - `fstatat`/`openat`/`unlinkat`/`fdopendir` exist only in libkernel_sys, which a title cannot import; left unresolved they became calls through NULL (the crash on starting any disc). MIT shims (`ps5/platform/title/path_shims.c`, `dir_shims.c`) cover them, and first-launch prepare removes folders with its own getdents walk.
 - The C heap (`ps5/platform/title/heap.c`, linked with `--wrap=malloc` etc.) comes from direct memory; the system malloc refused tens-of-MB blocks. Disc files are hashed and extracted in chunks.
 - A fault handler (`fault_klog.c`) writes signal, registers and stack to the kernel log.
+- Profiler: `/data/sfiii/sample.enable` turns on a sampler in `fault_klog.c`. Any content logs the
+  main thread's rip every 500 ms; `perf` takes 1 kHz samples instead and sorts them into
+  x64 (the module set the loader mapped), eboot, other (system libraries) and wait (present/pace),
+  plus frame time and work time per frame. Every 10 s it writes a `[sf3 perf]` line to klog and
+  `/data/sfiii/perf.txt`.
+- 4:3 leaves out the frame's first column, which on many screens holds the VDP2 back-screen colour
+  (a blue stripe a CRT hides in overscan).
 - The dev-build debug server listens on port 9200 by default: a title's bind on 9300/9301 fails with EACCES.
 - Japanese Scenario 2/3 and Premium Disc images must be translated (v25.1 patch, Translate page) before they play; untranslated images report "not a supported revision".
 

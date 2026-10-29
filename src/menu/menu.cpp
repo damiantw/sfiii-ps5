@@ -268,17 +268,27 @@ void Menu::in_game_page() {
     ImGui::SetItemDefaultFocus();
     if (resume) { close(); return; }
     ImGui::SeparatorText("Save states");
-    ImGui::SliderInt("Slot", &state_slot_, 0, STATE_SLOTS - 1);
+    // A list rather than a slider: a pad can pick from it without first activating the control.
+    auto slot_label = [&](int i) { std::string in = host_.state_info(i); return "Slot " + std::to_string(i) + ": " + (in.empty() ? "empty" : in); };
+    if (ImGui::BeginCombo("Slot", slot_label(state_slot_).c_str())) {
+        for (int i = 0; i < STATE_SLOTS; ++i) {
+            if (ImGui::Selectable(slot_label(i).c_str(), i == state_slot_)) state_slot_ = i;
+            if (i == state_slot_) ImGui::SetItemDefaultFocus();
+        }
+        ImGui::EndCombo();
+    }
     std::string info = host_.state_info(state_slot_);
-    ImGui::TextDisabled("%s", info.empty() ? "empty" : info.c_str());
     auto failed = [&](const char* what) { std::string e = host_.last_error(); return e.empty() ? std::string(what) : std::string(what) + ": " + e; };
-    if (ImGui::Button("Save")) toast_ = host_.save_state(state_slot_) ? "saved" : failed("save failed");
+    // The machine is paused while the menu is up, so the save runs at its next safe point after the
+    // menu closes; the host shows "slot N saved" when it has really been written.
+    bool saving = false;
+    if (ImGui::Button("Save")) { saving = host_.save_state(state_slot_); toast_ = saving ? "" : failed("save failed"); }
     ImGui::SameLine();
     ImGui::BeginDisabled(info.empty());
     bool loaded = false;
     if (ImGui::Button("Load")) { loaded = host_.load_state(state_slot_); toast_ = loaded ? "" : failed("load failed"); }
     ImGui::EndDisabled();
-    if (loaded) { close(); return; }
+    if (loaded || saving) { close(); return; }
     if (!toast_.empty()) { ImGui::SameLine(); ImGui::TextUnformatted(toast_.c_str()); }
     ImGui::SeparatorText("Speed and display");
     settings_page();

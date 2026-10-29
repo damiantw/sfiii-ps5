@@ -34,6 +34,9 @@ logic (drive, replay segments, story-flag checks) runs against the console uncha
 | `throw` | `caught devtools throw`: a C++ exception thrown three calls deep and caught, to check unwinding on the console |
 | `detach` (or `quit`) | `bye`; the game keeps running (quit never ends the title) |
 
+`sf3dev.py` has a verb for each (`saved`, `loaded`, `throw`, `detach`), and `raw LINE` sends any
+line and prints the reply. The default URL is `tcp://192.168.1.70:9200` (`--url` or `SF3DEV_URL`).
+
 Commands are served on the emulation thread at VBlank-IN only, so a paused run is exactly as
 deterministic as `--agent`: the same presses at the same VBlanks give the same result.
 

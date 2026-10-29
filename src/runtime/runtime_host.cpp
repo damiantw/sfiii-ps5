@@ -69,11 +69,13 @@ bool RuntimeHost::load_state(int slot) {
 std::string RuntimeHost::state_info(int slot) {
     struct stat st;
     if (stat(slot_path(slot).c_str(), &st) != 0) return {};
-    time_t t = st.st_mtime;
-    struct tm tm;
-    localtime_r(&t, &tm);
-    char buf[32];
-    std::strftime(buf, sizeof buf, "%Y-%m-%d %H:%M", &tm);
+    // Age rather than a clock time: the console's C library has no time zone, so a clock time would be UTC.
+    long age = long(time(nullptr) - st.st_mtime);
+    char buf[48];
+    if (age < 60) std::snprintf(buf, sizeof buf, "saved just now");
+    else if (age < 3600) std::snprintf(buf, sizeof buf, "saved %ld min ago", age / 60);
+    else if (age < 86400) std::snprintf(buf, sizeof buf, "saved %ld h %ld min ago", age / 3600, age % 3600 / 60);
+    else std::snprintf(buf, sizeof buf, "saved %ld days ago", age / 86400);
     return buf;
 }
 

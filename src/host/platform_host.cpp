@@ -1,4 +1,5 @@
 // MIT, see LICENSE.
+#include <algorithm>
 #include "platform_host.h"
 #include "saturn_pad.h"
 #include "../vulkan/display.h"
@@ -65,6 +66,7 @@ bool PlatformHost::ui_frame() {
     ImGui::NewFrame();
     menu_.draw();
     if (toast) {
+        ImGui::GetStyle().FontScaleMain = std::max(1.0f, settings_.ui_scale);   // same size as the menu text
         ImGui::SetNextWindowPos(ImVec2(io.DisplaySize.x * 0.03f, io.DisplaySize.y * 0.92f), ImGuiCond_Always, ImVec2(0, 1));
         ImGui::SetNextWindowBgAlpha(0.7f);
         ImGui::Begin("##toast", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_AlwaysAutoResize |

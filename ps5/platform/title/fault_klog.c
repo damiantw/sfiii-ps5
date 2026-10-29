@@ -66,31 +66,89 @@ void sf3_fault_install(void) {
     sf3_fault_memory("start");
 }
 
-// A sampling profiler for dev runs: with /data/sfiii/sample.enable present, a thread signals the
-// thread that called sf3_sample_start every 500 ms for five minutes, and the handler writes that
-// thread's rip, rbp and return address ("[sf3 sample]") to the kernel log, to symbolize later.
+// A sampling profiler for dev runs, enabled by /data/sfiii/sample.enable.
+// - Empty file (or other text): every 500 ms for five minutes the handler writes the sampled
+//   thread's rip and callers ("[sf3 sample]") to the kernel log, to symbolize later.
+// - "perf" in the file: 1000 samples a second, classified as generated x64 code (the code-cache
+//   ranges below), eboot code (runtime, host), waiting (the host's pace/present wait, flagged by
+//   sf3_perf_wait) or other (system libraries, kernel). Every 10 s a "[sf3 perf]" summary with the
+//   frame times (sf3_perf_frame) goes to the kernel log and /data/sfiii/perf.txt.
 #include <pthread.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <stdio.h>
+#include <time.h>
 static pthread_t g_sampled;
+static int g_perf;
+#define GEN_MAX 256
+static volatile uintptr_t g_gen_b[GEN_MAX], g_gen_e[GEN_MAX];
+void sf3_gen_range(uintptr_t base, uintptr_t size, int add) {
+    for (int i = 0; i < GEN_MAX; ++i) {
+        if (add && !g_gen_e[i]) { g_gen_b[i] = base, g_gen_e[i] = base + size; return; }
+        if (!add && g_gen_b[i] == base) { g_gen_e[i] = 0, g_gen_b[i] = 0; return; }
+    }
+}
+volatile int sf3_perf_wait;   // set by the host while it waits for the frame's time or the display
+static volatile unsigned long g_n_gen, g_n_eboot, g_n_wait, g_n_other;
+static volatile unsigned long g_frames, g_work_ns, g_frame_ns, g_frame_max, g_over;
+void sf3_perf_frame(unsigned long work_ns, unsigned long frame_ns) {
+    g_frames++, g_work_ns += work_ns, g_frame_ns += frame_ns;
+    if (frame_ns > g_frame_max) g_frame_max = frame_ns;
+    if (frame_ns > 17500000ul) g_over++;
+}
+extern char __sf3_text_start[], __sf3_text_end[];   // ps5-title.ld
 static void on_sample(int sig, siginfo_t* si, void* ctx) {
     (void)sig, (void)si;
     const mcontext_t* m = &((const ucontext_t*)ctx)->uc_mcontext;
+    uintptr_t rip = m->mc_rip;
+    if (g_perf) {
+        if (sf3_perf_wait) { g_n_wait++; return; }
+        for (int i = 0; i < GEN_MAX; ++i)
+            if (rip >= g_gen_b[i] && rip < g_gen_e[i]) { g_n_gen++; return; }
+        uintptr_t lo = (uintptr_t)__sf3_text_start, hi = (uintptr_t)__sf3_text_end;
+        if (rip >= lo && rip < hi) g_n_eboot++; else g_n_other++;
+        return;
+    }
     const uintptr_t* sp = (const uintptr_t*)m->mc_rsp;
-    s("[sf3 sample]"), reg("rip", m->mc_rip);
+    s("[sf3 sample]"), reg("rip", rip);
     int k = 0;   // the first words on the stack that point into the eboot's code: its callers
     for (int i = 0; i < 512 && k < 6; ++i)
         if (sp[i] >= 0x400000 && sp[i] < 0xcf0000) s(" "), x(sp[i]), ++k;
     flush();
 }
+static void perf_report(void) {
+    unsigned long g = g_n_gen, e = g_n_eboot, w = g_n_wait, o = g_n_other, f = g_frames;
+    unsigned long wk = g_work_ns, fr = g_frame_ns, mx = g_frame_max, ov = g_over;
+    g_n_gen = g_n_eboot = g_n_wait = g_n_other = 0, g_frames = g_work_ns = g_frame_ns = g_frame_max = g_over = 0;
+    unsigned long t = g + e + w + o, busy = g + e + o;
+    char line[320];
+    snprintf(line, sizeof line,
+             "[sf3 perf] %lu frames, frame %.2f ms avg %.2f max, work %.2f ms avg, %lu over 17.5 ms; "
+             "samples %lu: x64 %.1f%% eboot %.1f%% other %.1f%% wait %.1f%%; x64 share of busy %.1f%%\n",
+             f, f ? fr / 1e6 / f : 0.0, mx / 1e6, f ? wk / 1e6 / f : 0.0, ov, t,
+             t ? 100.0 * g / t : 0.0, t ? 100.0 * e / t : 0.0, t ? 100.0 * o / t : 0.0, t ? 100.0 * w / t : 0.0,
+             busy ? 100.0 * g / busy : 0.0);
+    sceKernelDebugOutText(0, line);
+    FILE* fp = fopen("/data/sfiii/perf.txt", "a");
+    if (fp) fputs(line, fp), fclose(fp);
+}
 static void* sampler(void* arg) {
     (void)arg;
+    if (g_perf) {
+        for (unsigned long i = 1;; ++i) {
+            usleep(1000);
+            pthread_kill(g_sampled, SIGUSR2);
+            if (i % 10000 == 0) perf_report();
+        }
+    }
     for (int i = 0; i < 600; ++i) { usleep(500000); pthread_kill(g_sampled, SIGUSR2); }
     return 0;
 }
 void sf3_sample_start(void) {
     int fd = open("/data/sfiii/sample.enable", O_RDONLY);
     if (fd < 0) return;
+    char buf[16] = {0};
+    if (read(fd, buf, sizeof buf - 1) > 0 && strstr(buf, "perf")) g_perf = 1;
     close(fd);
     struct sigaction sa;
     memset(&sa, 0, sizeof sa);
@@ -100,5 +158,5 @@ void sf3_sample_start(void) {
     g_sampled = pthread_self();
     pthread_t t;
     pthread_create(&t, 0, sampler, 0);
-    s("[sf3 sample] started"), reg("on_sample", (uintptr_t)&on_sample), flush();
+    s(g_perf ? "[sf3 perf] started" : "[sf3 sample] started"), reg("on_sample", (uintptr_t)&on_sample), flush();
 }

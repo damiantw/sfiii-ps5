@@ -73,7 +73,7 @@ int main() {
     if (FILE* fp = std::fopen(host.slot_path(3).c_str(), "wb")) { std::fputs("state", fp); std::fclose(fp); }
     f.write_result = 1;
     host.frame(m, false); CHECK(m.status_text() == "slot 3 saved");
-    CHECK(host.state_info(3).size() == 16);   // "YYYY-MM-DD HH:MM"
+    CHECK(host.state_info(3) == "saved just now");
 
     // a failed write
     CHECK(host.save_state(5)); f.write_result = -1;
