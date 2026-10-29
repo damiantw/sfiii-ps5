@@ -5,6 +5,7 @@
 #include "platform_host.h"
 #include "relaunch.h"
 #include "menu/jobs.h"
+#include "patch/fetch_sce.h"
 #include "menu/pad_sdl2.h"
 #include "../vulkan/display.h"
 #include "imgui.h"
@@ -100,6 +101,11 @@ int main(int argc, char** argv) {
     launcher.quit = [&] { g_next = {}, g_relaunch = true; if (g_host) g_host->stop(); };
     runtime::RuntimeHost rt(api, launcher, settings.data_dir + "/states");
     rt.settings_changed(settings);
+#if defined(SF3_PS5_CONSOLE)
+    rt.set_transport(fetch::sce_http_transport());   // used only after the player opts in
+#else
+    rt.set_transport(fetch::curl_transport());
+#endif
 
     ImGui::CreateContext();
     menu::setup_imgui(ImGui::GetIO());

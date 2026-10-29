@@ -42,6 +42,8 @@ public:
     std::string state_info(int slot) override;   // file time, local, "YYYY-MM-DD HH:MM"
     std::string last_error() override { return error_; }
     void settings_changed(const menu::Settings& s) override;
+    std::shared_ptr<fetch::Transport> transport() override { return transport_; }
+    void set_transport(std::shared_ptr<fetch::Transport> t) { transport_ = std::move(t); }   // nullptr: no downloads
 
     // Once per host frame, before the menu's draw(): pause while the overlay is up in game,
     // the speed the pacer reads, and the outcome of a queued save/load into the menu.
@@ -57,6 +59,7 @@ private:
     RuntimeApi api_;
     Launcher launcher_;
     std::string states_dir_, disc_id_, error_;
+    std::shared_ptr<fetch::Transport> transport_;
     std::atomic<int> speed_{1};
     bool paused_ = false;
     enum class Pending { None, Save, Load } pending_ = Pending::None;

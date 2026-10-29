@@ -22,7 +22,10 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   It can write a new image or patch in place. Add-ons can be `.zip`, `.7z` or folders
   (`.7z` through the LZMA SDK's public-domain decoder; encrypted archives are not supported).
   Downloading the translation project's latest
-  release and add-ons is opt-in.
+  release and add-ons is opt-in. On the console it goes through the system HTTP library
+  (`src/patch/fetch_sce`): HTTPS with the system's certificate checks and the console's own DNS.
+  If the console's DNS blocks the server, copy the files by hand instead. Tested against a fake
+  of the library, not yet on the console.
 - **Menu** (`src/menu`, Dear ImGui): the launcher has the four disc slots, disc status,
   the translation page and the download page; the in-game overlay has save/load state (10 slots),
   speed 1x/2x/3x with hold-to-fast-forward, and 4:3 or 16:9 display. It draws through Vulkan
@@ -47,8 +50,7 @@ Early. Only the swapchain test title (below) has run on the console. What exists
 - the debug server, its client and the crash handler (`docs/devtools.md`)
 - a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
 
-Still to come: the Vulkan backend, the PS5 network transport for downloads, and
-the packaging scripts.
+Still to come: the Vulkan backend and the packaging scripts.
 
 ### Supported discs
 Redump dumps, as BIN/CUE or CHD: Scenario 1 (USA), Scenario 2 (Japan, 1.003 and Rev A 2.000),
@@ -106,7 +108,7 @@ build/sf3patch patch disc.cue --package ... --in-place     # replaces the BIN/CU
 timestamps; that is how the tests compare against the Python patcher.
 
 CI (`.github/workflows/ci.yml`) builds everything and runs the tests that need no game data: the
-debug server test, `patch_quirks` against the Python patcher, `runtime_host_test` (the menu's runtime glue on a fake runtime), a compile of
+debug server test, `patch_quirks` against the Python patcher, `runtime_host_test` (the menu's runtime glue on a fake runtime), `fetch_sce_test` (the console's download transport on a fake sceHttp), a compile of
 `src/runtime/runtime_bind.cpp` against the pinned saturn-recomp with sfiii-native's patch,
 `tests/sevenzip_test.sh` (synthetic files packed
 five ways with the 7-Zip CLI), `vk_scene_test`, `vk_menu_test`, `host_test` (the PS5 host: pacer,
