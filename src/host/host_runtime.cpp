@@ -4,6 +4,10 @@
 // with the runtime and the generated code. MIT, see LICENSE.
 #include "platform_host.h"
 #include "relaunch.h"
+#if !defined(SF3_PS5_CONSOLE)
+#include "script.h"
+#include "window_screen.h"
+#endif
 #include "menu/jobs.h"
 #include "patch/fetch_sce.h"
 #include "menu/pad_sdl2.h"
@@ -16,6 +20,11 @@
 #include <cstdlib>
 #include <filesystem>
 #include <memory>
+#include <string>
+#if !defined(SF3_PS5_CONSOLE)
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
 
 #ifndef SF3_PS5_BUILD_ID
 #define SF3_PS5_BUILD_ID "dev"
@@ -29,6 +38,12 @@ host::AudioOut* g_audio = nullptr;
 bool g_have_audio = false;
 host::AppArgs g_next;           // what to start after this run
 bool g_relaunch = false;
+int g_next_fd = -1;   // PC: the pipe to the supervisor that relaunches (see run_supervised)
+void post_next() {    // the runtime ends with _Exit, so the request has to leave before it does
+    if (g_next_fd < 0) return;
+    std::string line = g_relaunch ? (g_next.cue.empty() ? std::string("L\n") : "C " + g_next.cue + "\n") : std::string("N\n");
+    (void)!::write(g_next_fd, line.data(), line.size());
+}
 std::string g_launch_cue;       // chosen in the launcher (no game running yet)
 
 struct Call {                   // the stall report's "in host call ..."
@@ -64,6 +79,35 @@ void host_audio_report() {
 int main(int argc, char** argv) {
     host::AppArgs args = host::AppArgs::parse(argc, argv);
     std::string why;
+#if !defined(SF3_PS5_CONSOLE)
+    // saturn_main never returns: the runtime ends the process with _Exit once the run stops.
+    // So the whole app runs in a child, forked before any thread exists, and this process only
+    // waits for it and does the relaunch the child asked for.
+    int fds[2];
+    if (::pipe(fds) == 0) {
+        pid_t pid = ::fork();
+        if (pid == 0) { ::close(fds[0]); g_next_fd = fds[1]; }
+        else if (pid > 0) {
+            ::close(fds[1]);
+            std::string got; char buf[4096]; ssize_t n;
+            while ((n = ::read(fds[0], buf, sizeof buf)) > 0) got.append(buf, size_t(n));
+            int status = 0;
+            ::waitpid(pid, &status, 0);
+            int code = WIFEXITED(status) ? WEXITSTATUS(status) : 1;
+            size_t end = got.rfind('\n'), start = end == std::string::npos ? 0 : got.rfind('\n', end - 1);
+            std::string last = end == std::string::npos ? "" : got.substr(start == std::string::npos ? 0 : start + 1, end - (start == std::string::npos ? 0 : start + 1));
+            host::AppArgs next;
+            bool again = !last.empty() && last[0] != 'N';
+            if (again && last[0] == 'C') next.cue = last.substr(2);
+            std::fprintf(stderr, "run ended (%d)%s%s\n", code, again ? "; restarting " : "", again ? (next.cue.empty() ? "into the launcher" : next.cue.c_str()) : "");
+            std::fflush(nullptr);
+            if (const char* g = std::getenv("SF3_PS5_GEN"); again)   // the script's generation
+                setenv("SF3_PS5_GEN", std::to_string((g ? std::atoi(g) : 0) + 1).c_str(), 1);
+            if (again && !host::relaunch(next, why)) std::fprintf(stderr, "relaunch: %s\n", why.c_str());
+            std::_Exit(code);
+        }
+    }
+#endif
     SDL_SetHint(SDL_HINT_JOYSTICK_ALLOW_BACKGROUND_EVENTS, "1");
     if (SDL_Init(SDL_INIT_GAMECONTROLLER | SDL_INIT_AUDIO) != 0) { std::fprintf(stderr, "SDL_Init: %s\n", SDL_GetError()); return 1; }
 
@@ -78,11 +122,23 @@ int main(int argc, char** argv) {
     if (!scene.init(why, !offscreen)) { std::fprintf(stderr, "vulkan: %s\n", why.c_str()); return 1; }
     sf3ps5::Display display;
     std::unique_ptr<host::Screen> screen;
-    if (offscreen) screen = std::make_unique<host::OffscreenScreen>(scene, 1920, 1080);
-    else {
+    const std::vector<uint8_t>* pixels = nullptr;   // the last frame, for the script's shots (PC)
+    if (offscreen) {
+        auto o = std::make_unique<host::OffscreenScreen>(scene, 1280, 720);
+        pixels = &o->rgba;
+        screen = std::move(o);
+    } else {
+#if defined(SF3_PS5_CONSOLE)
         if (!display.open(scene, why)) { std::fprintf(stderr, "display: %s\n", why.c_str()); return 1; }
         screen = std::make_unique<host::DisplayScreen>(display);
+#else
+        auto w = std::make_unique<host::WindowScreen>(scene, 1280, 720);
+        if (!w->open(why)) { std::fprintf(stderr, "window: %s\n", why.c_str()); return 1; }
+        pixels = &w->rgba();
+        screen = std::move(w);
+#endif
     }
+    (void)pixels;
 
     host::AudioOut audio;
     g_have_audio = audio.open(why);
@@ -95,10 +151,11 @@ int main(int argc, char** argv) {
     launcher.launch = [&](const std::string& image) {
         if (!in_game) { g_launch_cue = image; return; }
         g_next.cue = image, g_relaunch = true;   // another disc: end this run, then relaunch
+        post_next();
         api.stop("Another disc was chosen in the menu");
         if (g_host) g_host->stop();
     };
-    launcher.quit = [&] { g_next = {}, g_relaunch = true; if (g_host) g_host->stop(); };
+    launcher.quit = [&] { g_next = {}, g_relaunch = true; post_next(); if (g_host) g_host->stop(); };
     runtime::RuntimeHost rt(api, launcher, settings.data_dir + "/states");
     rt.settings_changed(settings);
 #if defined(SF3_PS5_CONSOLE)
@@ -112,21 +169,75 @@ int main(int argc, char** argv) {
     menu::Jobs jobs;
     menu::Menu m(rt, settings, jobs, settings_path);
     menu::SdlPad pad;
-    host::PlatformHost ph(scene, *screen, m, settings, rt,
-                          [&] { SDL_GameControllerUpdate(); return pad.read(); }, g_audio);
+    std::function<menu::PadState()> read = [&] { SDL_GameControllerUpdate(); return pad.read(); };
+#if !defined(SF3_PS5_CONSOLE)
+    // PC test driver (script.h)
+    const char* gen_env = std::getenv("SF3_PS5_GEN");
+    int gen = gen_env ? std::atoi(gen_env) : 0;
+    host::Script script;
+    bool scripted = false;
+    std::string last_status;
+    if (const char* sp = std::getenv("SF3_PS5_SCRIPT")) {
+        if (!script.load(sp, gen, why)) { std::fprintf(stderr, "script: %s\n", why.c_str()); return 1; }
+        scripted = true;
+    }
+    if (scripted) read = [&, base = read] {
+        menu::PadState p = base();
+        p.connected = true;
+        for (auto& st : script.tick(p)) {
+            std::fprintf(stderr, "script %d/%ld: %s %s\n", gen, script.now(), st.op.c_str(), st.arg.c_str());
+            if (st.op == "save" || st.op == "load") {
+                bool ok = st.op == "save" ? rt.save_state(std::atoi(st.arg.c_str())) : rt.load_state(std::atoi(st.arg.c_str()));
+                std::fprintf(stderr, "script: %s %s: %s\n", st.op.c_str(), ok ? "queued" : "refused", rt.last_error().c_str());
+            } else if (st.op == "quit") {
+                if (in_game) rt.quit_to_launcher(); else std::exit(0);
+            } else if (st.op == "launch") {
+                rt.launch(st.arg);
+            } else if (st.op == "menu") {
+                m.open(menu::Page::InGame);
+            } else if (st.op == "shot" && pixels && !pixels->empty()) {
+                if (FILE* f = std::fopen(st.arg.c_str(), "wb")) {
+                    int W = screen->width(), H = screen->height();
+                    std::fprintf(f, "P6\n%d %d\n255\n", W, H);
+                    for (size_t i = 0; i < size_t(W) * H; i++) std::fwrite(&(*pixels)[i * 4], 1, 3, f);
+                    std::fclose(f);
+                }
+            } else if (st.op == "exit") {
+                g_relaunch = false;
+                post_next();
+                if (in_game) api.stop("the script ended the run"); else std::exit(0);
+            }
+        }
+        if (m.status_text() != last_status) {
+            last_status = m.status_text();
+            std::fprintf(stderr, "menu status (tick %ld): %s\n", script.now(), last_status.c_str());
+        }
+        return p;
+    };
+#endif
+    host::PlatformHost ph(scene, *screen, m, settings, rt, read, g_audio);
+#if !defined(SF3_PS5_CONSOLE)
+    ph.menu_frame_floor = std::chrono::milliseconds(offscreen ? 0 : 16);
+#endif
     if (!ph.init(why)) { std::fprintf(stderr, "menu: %s\n", why.c_str()); return 1; }
     g_host = &ph;
 
     if (!in_game) {   // the launcher: until a disc is chosen
         m.set_in_game(false);
         m.open(menu::Page::Launcher);
-        while (g_launch_cue.empty())
+        while (g_launch_cue.empty()) {
             if (!ph.ui_frame()) { std::fprintf(stderr, "screen: %s\n", ph.error().c_str()); return 1; }
+            if (offscreen) continue;
+#if !defined(SF3_PS5_CONSOLE)
+            SDL_Delay(16);   // the PC window has no vsync wait
+#endif
+        }
         args.cue = g_launch_cue;
     }
     rt.set_disc_id(runtime::disc_identity(args.cue));
     setenv("SF3_STATE_ID", (std::string(SF3_PS5_BUILD_ID) + ":" + rt.disc_id()).c_str(), 1);
     m.set_in_game(true);
+    in_game = true;
     m.close();
 
     std::error_code ec;
@@ -139,6 +250,8 @@ int main(int argc, char** argv) {
     cfg.out = settings.data_dir + "/logs";
     int code = saturn_main(cfg);
     g_host = nullptr;
+    std::fprintf(stderr, "run ended (%d)%s%s\n", code, g_relaunch ? "; restarting " : "", g_relaunch ? (g_next.cue.empty() ? "into the launcher" : g_next.cue.c_str()) : "");
+    std::fflush(nullptr);
     if (g_relaunch && !host::relaunch(g_next, why))
         std::fprintf(stderr, "relaunch: %s; exiting (start the app again from the home screen)\n", why.c_str());
     return code;

@@ -41,9 +41,9 @@ void RuntimeHost::launch(const std::string& image) {
 }
 
 void RuntimeHost::quit_to_launcher() {
-    if (api_.stop) api_.stop("Quit was chosen in the menu");
-    if (launcher_.quit) launcher_.quit();
     pending_ = Pending::None;
+    if (launcher_.quit) launcher_.quit();   // first: stop does not return when it ends a running machine
+    if (api_.stop) api_.stop("Quit was chosen in the menu");
 }
 
 bool RuntimeHost::save_state(int slot) {
