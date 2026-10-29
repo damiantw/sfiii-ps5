@@ -27,3 +27,19 @@ if(Vulkan_FOUND)
     target_link_libraries(vk_scene_test sf3ps5_vulkan)
   endif()
 endif()
+
+# The runtime side of the dev tools (src/devtools/runtime_agent.cpp) replaces saturn-recomp's
+# machine/agent.cpp. SF3_PS5_RUNTIME_DIR is a patched saturn-recomp checkout (sfiii-native's
+# tools/runtime-diagnostics.patch applied). This object library compiles it against the real runtime headers,
+# so a header change shows up here before the console build.
+set(SF3_PS5_RUNTIME_DIR "" CACHE PATH "Patched saturn-recomp checkout (optional, for the runtime_agent compile check)")
+if(SF3_PS5_RUNTIME_DIR)
+  add_library(sf3ps5_runtime_agent OBJECT src/devtools/runtime_agent.cpp)
+  target_include_directories(sf3ps5_runtime_agent PRIVATE
+    ${SF3_PS5_RUNTIME_DIR}/runtime/include ${SF3_PS5_RUNTIME_DIR}/runtime/include/saturn
+    ${SF3_PS5_RUNTIME_DIR}/runtime/src/machine ${SF3_PS5_RUNTIME_DIR}/runtime/src/video
+    ${SF3_PS5_RUNTIME_DIR}/runtime/src ${CMAKE_CURRENT_SOURCE_DIR}/src/devtools)
+  if(SF3_PS5_DEVTOOLS)
+    target_compile_definitions(sf3ps5_runtime_agent PRIVATE SF3_PS5_DEVTOOLS=1)
+  endif()
+endif()
