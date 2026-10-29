@@ -286,6 +286,7 @@ bool VkScene::draw(int w, int h, uint32_t aa_pass, bool picture_is_last, std::st
     vkWaitForFences(dev_, 1, &fence_, VK_TRUE, UINT64_MAX);
     vkResetFences(dev_, 1, &fence_);
     cur_ = dst;
+    use_picture_ = false;
     return true;
 }
 
@@ -317,9 +318,49 @@ bool VkScene::read_rgba(std::vector<uint8_t>& out, std::string& why) {
     return true;
 }
 
+bool VkScene::upload_picture(const uint32_t* px, int w, int h, std::string& why) {
+    if (w <= 0 || h <= 0 || !px) return why = "empty picture", false;
+    bool fresh = false;
+    if (picture_.w != w || picture_.h != h) {
+        vkDeviceWaitIdle(dev_);
+        free_image(picture_);
+        free_buffer(picture_up_);
+        if (!make_image(picture_, w, h, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_SAMPLED_BIT, why)) return false;
+        if (!make_buffer(picture_up_, VkDeviceSize(w) * h * 4, VK_BUFFER_USAGE_TRANSFER_SRC_BIT, why)) return false;
+        fresh = true;
+    }
+    auto* o = static_cast<uint32_t*>(picture_up_.map);   // R8G8B8A8: R in the low byte
+    for (size_t i = 0, n = size_t(w) * h; i < n; ++i) {
+        uint32_t p = px[i];
+        o[i] = 0xFF000000u | ((p & 0xFFu) << 16) | (p & 0xFF00u) | ((p >> 16) & 0xFFu);
+    }
+    VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
+    vkResetCommandBuffer(cmd_, 0);
+    vkBeginCommandBuffer(cmd_, &bi);
+    VkImageMemoryBarrier ib{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+    ib.srcQueueFamilyIndex = ib.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, ib.image = picture_.img, ib.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    ib.oldLayout = fresh ? VK_IMAGE_LAYOUT_UNDEFINED : VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL, ib.newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    ib.srcAccessMask = 0, ib.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
+    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT | VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+    VkBufferImageCopy cp{};
+    cp.imageSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1}, cp.imageExtent = {uint32_t(w), uint32_t(h), 1};
+    vkCmdCopyBufferToImage(cmd_, picture_up_.buf, picture_.img, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &cp);
+    ib.oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, ib.newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    ib.srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, ib.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
+    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT, 0, 0, nullptr, 0, nullptr, 1, &ib);
+    vkEndCommandBuffer(cmd_);
+    VkSubmitInfo sub{VK_STRUCTURE_TYPE_SUBMIT_INFO};
+    sub.commandBufferCount = 1, sub.pCommandBuffers = &cmd_;
+    VK(vkQueueSubmit(queue_, 1, &sub, fence_), "submit picture upload");
+    vkWaitForFences(dev_, 1, &fence_, VK_TRUE, UINT64_MAX);
+    vkResetFences(dev_, 1, &fence_);
+    use_picture_ = true;
+    return true;
+}
+
 bool VkScene::present_to(VkImage dst, int w, int h, VkImageLayout old_layout, VkImageLayout final_layout, Rect r,
                          bool nearest, std::string& why, VkSemaphore wait, VkSemaphore signal, const Overlay& overlay) {
-    Image& t = target_[cur_];
+    Image& t = use_picture_ ? picture_ : target_[cur_];
     if (!t.img) return why = "nothing drawn", false;
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     vkResetCommandBuffer(cmd_, 0);
@@ -408,7 +449,8 @@ VkScene::~VkScene() {
     vkDeviceWaitIdle(dev_);
     for (auto& f : fb_) if (f) vkDestroyFramebuffer(dev_, f, nullptr);
     for (auto& t : target_) free_image(t);
-    free_image(white_), free_image(screen_);
+    free_image(white_), free_image(screen_), free_image(picture_);
+    free_buffer(picture_up_);
     free_buffer(screen_rb_);
     free_buffer(scene_), free_buffer(textures_), free_buffer(ubo_), free_buffer(readback_);
     if (pipe_) vkDestroyPipeline(dev_, pipe_, nullptr);
