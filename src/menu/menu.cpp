@@ -112,22 +112,41 @@ void Menu::launcher() {
     auto st = jobs_.status();
     bool scanning = st.running && st.title.rfind("Scanning", 0) == 0;   // a slot is only "not found" once the scan ends
     ImGui::TextDisabled("Discs in %s", s_.data_dir.c_str());
+    auto row = [&](int c) {
+        auto& cand = r.all[size_t(c)];
+        // Buttons first, in fixed columns, so pad up/down moves straight between rows.
+        float x = ImGui::GetCursorPosX();
+        ImGui::BeginDisabled(jobs_.busy());
+        if (ImGui::Button("Play")) { host_.launch(cand.path); in_game_ = true; visible_ = false; }
+        ImGui::SameLine(x + ImGui::CalcTextSize("Play").x + ImGui::GetStyle().FramePadding.x * 2 + ImGui::GetStyle().ItemSpacing.x);
+        float tx = ImGui::GetCursorPosX();
+        float tw = ImGui::CalcTextSize("Translate...").x + ImGui::GetStyle().FramePadding.x * 2;
+        if (cand.cls.state == disc::State::Original) {
+            if (ImGui::Button("Translate...")) { patch_target_ = c; list_ = {}; list_error_.clear(); page_ = Page::Patch; select_ = 2; }
+        } else {
+            ImGui::Dummy(ImVec2(tw, ImGui::GetFrameHeight()));
+        }
+        ImGui::EndDisabled();
+        ImGui::SameLine(tx + tw + ImGui::GetStyle().ItemSpacing.x);
+        ImGui::Text("%s  [%s]", disc::path_name(cand.path).c_str(), disc::state_name(cand.cls.state));
+    };
     for (int i = 1; i <= 4; i++) {
         ImGui::PushID(i);
         int c = r.slot[i];
         ImGui::Text("%-13s", slot_label(i));
         ImGui::SameLine();
         if (c < 0) { ImGui::TextDisabled(scanning ? "scanning..." : "not found"); ImGui::PopID(); continue; }
-        auto& cand = r.all[size_t(c)];
-        ImGui::Text("%s  [%s]", disc::path_name(cand.path).c_str(), disc::state_name(cand.cls.state));
+        row(c);
+        ImGui::PopID();
+    }
+    // Other recognised images (a second revision, a translated copy beside its original).
+    for (size_t i = 0; i < r.all.size(); i++) {
+        auto& a = r.all[i];
+        if (!a.ok || a.cls.slot == disc::Slot::None || r.slot[int(a.cls.slot)] == int(i)) continue;
+        ImGui::PushID(100 + int(i));
+        ImGui::TextDisabled("%-13s", slot_label(int(a.cls.slot)));
         ImGui::SameLine();
-        ImGui::BeginDisabled(jobs_.busy());
-        if (ImGui::Button("Play")) { host_.launch(cand.path); in_game_ = true; visible_ = false; }
-        if (cand.cls.state == disc::State::Original) {
-            ImGui::SameLine();
-            if (ImGui::Button("Translate...")) { patch_target_ = c; list_ = {}; list_error_.clear(); page_ = Page::Patch; select_ = 2; }
-        }
-        ImGui::EndDisabled();
+        row(int(i));
         ImGui::PopID();
     }
     size_t unknown = 0;
@@ -192,14 +211,15 @@ void Menu::patch_page() {
     for (size_t i = 0; i < list_.entries.size(); i++)
         if (ticks_[i] != list_.entries[i].ticked) (ticks_[i] ? req.enable : req.disable).push_back(list_.entries[i].name);
     bool cue = disc::path_suffix_lower(cand.path) == ".cue";
-    int mode = s_.patch_in_place && cue ? 1 : 0;
-    ImGui::RadioButton("New image beside the original", &mode, 0);
+    // A checkbox, not two radio buttons: the pad could not reach the radio row on the console.
+    bool in_place = s_.patch_in_place && cue;
     ImGui::BeginDisabled(!cue);
-    ImGui::SameLine();
-    ImGui::RadioButton("Replace the original", &mode, 1);
+    ImGui::Checkbox("Replace the original", &in_place);
     ImGui::EndDisabled();
-    if ((mode == 1) != s_.patch_in_place) { s_.patch_in_place = mode == 1; changed(); }
-    req.in_place = s_.patch_in_place;
+    ImGui::SameLine();
+    ImGui::TextDisabled(in_place ? "(the original is kept as .bak)" : "(off: a new image beside the original)");
+    if (in_place != s_.patch_in_place && cue) { s_.patch_in_place = in_place; changed(); }
+    req.in_place = s_.patch_in_place && cue;
     if (!req.in_place) {
         std::string base = cand.path.substr(0, cand.path.find_last_of('.'));
         req.output = base + " (Translated).bin";
