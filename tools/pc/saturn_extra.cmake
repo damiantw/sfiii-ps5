@@ -17,3 +17,7 @@ target_link_libraries(sf3ps5 saturn_core saturn_machine sf3ps5_host sf3ps5_runti
 if(TARGET sf3_interp)
   target_sources(sf3ps5 PRIVATE $<TARGET_OBJECTS:sf3_interp>)
 endif()
+# the generic build's module set loader (sfiii-native native/recomp/generic)
+if(TARGET sf3_x64_set)
+  target_sources(sf3ps5 PRIVATE $<TARGET_OBJECTS:sf3_x64_set>)
+endif()
