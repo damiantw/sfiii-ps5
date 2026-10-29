@@ -31,7 +31,7 @@ jobs:
           git clone -q "$1" /tmp/saturn-recomp && git -C /tmp/saturn-recomp checkout -q "$2"
           git -C /tmp/saturn-recomp apply "$PWD/external/sfiii-native/tools/runtime-diagnostics.patch"
           cmake -S . -B build-rt -DSF3_PS5_RUNTIME_DIR=/tmp/saturn-recomp -DSF3_PS5_DEVTOOLS=ON
-          cmake --build build-rt -j4 --target sf3ps5_runtime_bind sf3ps5_runtime_agent
+          cmake --build build-rt -j4 --target sf3ps5_runtime_bind sf3ps5_runtime_agent sf3ps5_host_runtime
       - name: PS5 download transport (sceHttp logic on a fake library)
         run: build/fetch_sce_test
       - name: PS5 download transport, console binding compiles
@@ -44,5 +44,10 @@ jobs:
         env:
           SDL_VIDEODRIVER: dummy
         run: build/vk_menu_test
+      - name: PS5 host test (pacer, pad, 48 kHz audio on SDL's disk driver, menu over frames, relaunch)
+        env:
+          SDL_VIDEODRIVER: dummy
+          SDL_AUDIODRIVER: disk
+        run: build/host_test
       - name: Release check (dev build must be flagged)
         run: "! tools/check-release.sh build/test_debug_server"

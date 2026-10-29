@@ -8,10 +8,10 @@ namespace {
 float dead(float v) { const float z = 0.25f; return v > z ? (v - z) / (1 - z) : v < -z ? (v + z) / (1 - z) : 0; }
 }
 
-PadEvents PadNav::feed(const PadState& s, bool visible, ImGuiIO* io) {
+PadEvents PadNav::feed(const PadState& s, bool visible, ImGuiIO* io, bool options_toggles) {
     PadEvents e;
     auto pressed = [&](bool now, bool before) { return now && !before; };
-    e.toggle_menu = pressed(s.touchpad, prev_.touchpad) || pressed(s.options, prev_.options);
+    e.toggle_menu = pressed(s.touchpad, prev_.touchpad) || (options_toggles && pressed(s.options, prev_.options));
     if (visible) {
         if (pressed(s.l1, prev_.l1)) e.tab = -1;
         if (pressed(s.r1, prev_.r1)) e.tab = +1;

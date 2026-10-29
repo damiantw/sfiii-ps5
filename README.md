@@ -36,7 +36,16 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   the saturn-recomp runtime: save/load go to the runtime's native states (one folder per disc,
   10 slots; the result shows in the menu once the runtime has written or loaded the state at its
   next safe moment), the game pauses while the overlay is open, and the speed and R2
-  fast-forward go to the pacer. The PS5 host that runs the runtime is not written yet.
+  fast-forward go to the pacer.
+- **PS5 host** (`src/host`, `docs/host.md`): the runtime's `host_*` calls and the app's `main`.
+  It shows the game field over Vulkan, placed 4:3 or 16:9, with the menu drawn over it. It paces
+  at 1x/2x/3x and holds R2 to fast-forward. The DualSense works as a Saturn pad, laid out as in
+  sfiii-native: Square A, Cross B, Circle C, Triangle X, L2 Y, R2 Z, L1 L, R1 R, Options START.
+  With hold-to-fast-forward on, Z moves to R3. Sound goes through SDL2 at 48 kHz.
+  Launching a disc or quitting to the launcher restarts the app (one disc per process).
+  On the PS5 this uses `sceSystemServiceLaunchApp` and has not been tried on the console. If it
+  fails, the app just exits and you start it again from the home screen. Tested on Linux with
+  synthetic frames. It has not yet run with the game, on PC or on the console.
   Our build refuses saturn-recomp's optional `SATURN_VDP1_GPL` renderer, which would make it GPL.
 - the debug server, its client and the crash handler (`docs/devtools.md`)
 - a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
@@ -102,7 +111,9 @@ CI (`.github/workflows/ci.yml`) builds everything and runs the tests that need n
 debug server test, `patch_quirks` against the Python patcher, `runtime_host_test` (the menu's runtime glue on a fake runtime), `fetch_sce_test` (the console's download transport on a fake sceHttp), a compile of
 `src/runtime/runtime_bind.cpp` against the pinned saturn-recomp with sfiii-native's patch,
 `tests/sevenzip_test.sh` (synthetic files packed
-five ways with the 7-Zip CLI), `vk_scene_test` and `vk_menu_test`
+five ways with the 7-Zip CLI), `vk_scene_test`, `vk_menu_test`, `host_test` (the PS5 host: pacer,
+pad layout, a sine's pitch through the 48 kHz path on SDL's disk driver, the menu over synthetic
+fields, relaunch through execv), a compile of `src/host/host_runtime.cpp` against the runtime
 (Mesa's lavapipe software Vulkan, SDL2 virtual controller), and the disc-data and release checks.
 
 The Vulkan tests and the menu's gamepad code need the Vulkan headers/loader and SDL2 on PC
