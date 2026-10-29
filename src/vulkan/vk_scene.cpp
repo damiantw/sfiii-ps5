@@ -318,7 +318,7 @@ bool VkScene::read_rgba(std::vector<uint8_t>& out, std::string& why) {
 }
 
 bool VkScene::present_to(VkImage dst, int w, int h, VkImageLayout old_layout, VkImageLayout final_layout, Rect r,
-                         bool nearest, std::string& why, VkSemaphore wait, VkSemaphore signal) {
+                         bool nearest, std::string& why, VkSemaphore wait, VkSemaphore signal, const Overlay& overlay) {
     Image& t = target_[cur_];
     if (!t.img) return why = "nothing drawn", false;
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
@@ -349,11 +349,24 @@ bool VkScene::present_to(VkImage dst, int w, int h, VkImageLayout old_layout, Vk
     }
     b[0].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, b[0].newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     b[0].srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT, b[0].dstAccessMask = VK_ACCESS_SHADER_READ_BIT;
-    b[1].oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, b[1].newLayout = final_layout;
-    b[1].srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT, b[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 2, b);
+    VkImageLayout cur = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
+    VkAccessFlags cur_access = VK_ACCESS_TRANSFER_WRITE_BIT;
+    VkPipelineStageFlags cur_stage = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    if (overlay) {
+        VkImageMemoryBarrier ob{VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER};
+        ob.srcQueueFamilyIndex = ob.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED, ob.subresourceRange = all, ob.image = dst;
+        ob.oldLayout = cur, ob.newLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        ob.srcAccessMask = cur_access, ob.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_READ_BIT | VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1, &ob);
+        overlay(cmd_, dst, w, h);
+        cur = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL, cur_access = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+        cur_stage = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    }
+    b[1].oldLayout = cur, b[1].newLayout = final_layout;
+    b[1].srcAccessMask = cur_access, b[1].dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
+    vkCmdPipelineBarrier(cmd_, VK_PIPELINE_STAGE_TRANSFER_BIT | cur_stage, VK_PIPELINE_STAGE_ALL_COMMANDS_BIT, 0, 0, nullptr, 0, nullptr, 2, b);
     vkEndCommandBuffer(cmd_);
-    VkPipelineStageFlags ws = VK_PIPELINE_STAGE_TRANSFER_BIT;
+    VkPipelineStageFlags ws = VK_PIPELINE_STAGE_TRANSFER_BIT | VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo sub{VK_STRUCTURE_TYPE_SUBMIT_INFO};
     sub.commandBufferCount = 1, sub.pCommandBuffers = &cmd_;
     if (wait) sub.waitSemaphoreCount = 1, sub.pWaitSemaphores = &wait, sub.pWaitDstStageMask = &ws;
@@ -364,13 +377,15 @@ bool VkScene::present_to(VkImage dst, int w, int h, VkImageLayout old_layout, Vk
     return true;
 }
 
-bool VkScene::present_offscreen(int w, int h, Rect r, bool nearest, std::vector<uint8_t>& out, std::string& why) {
+bool VkScene::present_offscreen(int w, int h, Rect r, bool nearest, std::vector<uint8_t>& out, std::string& why,
+                                const Overlay& overlay) {
     if (screen_.w != w || screen_.h != h) {
         free_image(screen_), free_buffer(screen_rb_);
-        if (!make_image(screen_, w, h, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT, why)) return false;
+        if (!make_image(screen_, w, h, VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT, why)) return false;
         if (!make_buffer(screen_rb_, VkDeviceSize(w) * h * 4, VK_BUFFER_USAGE_TRANSFER_DST_BIT, why)) return false;
     }
-    if (!present_to(screen_.img, w, h, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, r, nearest, why)) return false;
+    if (!present_to(screen_.img, w, h, VK_IMAGE_LAYOUT_UNDEFINED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, r, nearest, why,
+                    VK_NULL_HANDLE, VK_NULL_HANDLE, overlay)) return false;
     VkCommandBufferBeginInfo bi{VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO};
     vkResetCommandBuffer(cmd_, 0);
     vkBeginCommandBuffer(cmd_, &bi);

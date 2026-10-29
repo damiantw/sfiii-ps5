@@ -13,10 +13,15 @@
 #include <vulkan/vulkan.h>
 #include "present.h"
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
 namespace sf3ps5 {
+
+// Drawn over the presented frame (the menu): called with `dst` in COLOR_ATTACHMENT_OPTIMAL inside
+// present_to's command buffer, after the game picture is blitted. dst needs COLOR_ATTACHMENT usage.
+using Overlay = std::function<void(VkCommandBuffer cb, VkImage dst, int w, int h)>;
 
 class VkScene {
 public:
@@ -35,9 +40,12 @@ public:
     // for a fresh swapchain image), and `final_layout` is the layout to leave it in (PRESENT_SRC_KHR for a
     // swapchain). dst needs TRANSFER_DST usage. `wait`/`signal` are optional semaphores (acquire/present).
     bool present_to(VkImage dst, int w, int h, VkImageLayout old_layout, VkImageLayout final_layout, Rect r,
-                    bool nearest, std::string& why, VkSemaphore wait = VK_NULL_HANDLE, VkSemaphore signal = VK_NULL_HANDLE);
+                    bool nearest, std::string& why, VkSemaphore wait = VK_NULL_HANDLE, VkSemaphore signal = VK_NULL_HANDLE,
+                    const Overlay& overlay = nullptr);
     // Test and screenshot helper: present_to() into an internal w x h image, then read it back as RGBA8.
-    bool present_offscreen(int w, int h, Rect r, bool nearest, std::vector<uint8_t>& out, std::string& why);
+    bool present_offscreen(int w, int h, Rect r, bool nearest, std::vector<uint8_t>& out, std::string& why,
+                           const Overlay& overlay = nullptr);
+    static constexpr VkFormat kOffscreenFormat = VK_FORMAT_R8G8B8A8_UNORM;
     VkDevice device() const { return dev_; }
     VkPhysicalDevice physical_device() const { return phys_; }
     VkQueue queue() const { return queue_; }
@@ -49,7 +57,7 @@ private:
     struct Image { VkImage img = VK_NULL_HANDLE; VkDeviceMemory mem = VK_NULL_HANDLE; VkImageView view = VK_NULL_HANDLE; int w = 0, h = 0; };
     struct Buffer { VkBuffer buf = VK_NULL_HANDLE; VkDeviceMemory mem = VK_NULL_HANDLE; void* map = nullptr; VkDeviceSize size = 0; };
     bool make_buffer(Buffer&, VkDeviceSize, VkBufferUsageFlags, std::string&);
-    bool make_image(Image&, int w, int h, VkImageUsageFlags, std::string&);
+    bool make_image(Image&, int w, int h, VkImageUsageFlags, std::string&);   // R8G8B8A8_UNORM
     void free_image(Image&);
     void free_buffer(Buffer&);
     uint32_t memory_type(uint32_t bits, VkMemoryPropertyFlags) const;
