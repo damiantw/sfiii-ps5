@@ -31,6 +31,7 @@ struct Node {
     // files
     std::string disk_path;
     std::shared_ptr<ZipArchive> zip;
+    std::shared_ptr<const std::vector<uint8_t>> mem;   // unpacked already (.7z)
     size_t entry = 0;
     uint64_t size = 0;
     FTime mtime;
@@ -59,6 +60,11 @@ using Offset = std::optional<int64_t>;   // seconds east of UTC
 std::unique_ptr<Node> from_disk(const std::string& path);
 // .zip unpacked like Python's zipfile (DOS times), anything else like 7-Zip (NTFS times).
 std::unique_ptr<Node> from_zip(const std::string& path, bool python_semantics, Offset host_utc_offset);
+// .7z unpacked like the 7-Zip command line (paths as stored, NTFS times); every file is decoded
+// into memory up front (sevenzip.cpp, the LZMA SDK's public-domain decoder).
+std::unique_ptr<Node> from_7z(const std::string& path);
+// The folder for `parts` under root, made if missing (a file in the way is an error).
+Node* ensure_path(Node* root, const std::vector<std::string>& parts);
 
 // datetime.fromtimestamp(st_mtime, utc).replace(microsecond=0) of a (sec, nsec) mtime.
 int64_t python_mtime_seconds(FTime t);

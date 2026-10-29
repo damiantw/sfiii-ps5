@@ -140,9 +140,9 @@ Mods load_mod(Package& owner, const std::string& path, vfs::Offset off) {
     std::unique_ptr<Node> tree;
     if (is_file(path)) {
         std::string suf = disc::path_suffix_lower(path);
-        if (suf == ".7z") throw PackageError(disc::path_name(path) + ": .7z add-ons are not supported here; use a .zip or a folder");
-        if (suf != ".zip") throw PackageError(disc::path_name(path) + ": mods must be a .zip, .7z or folder");
-        tree = vfs::from_zip(path, true, off);
+        if (suf == ".7z") tree = vfs::from_7z(path);
+        else if (suf == ".zip") tree = vfs::from_zip(path, true, off);
+        else throw PackageError(disc::path_name(path) + ": mods must be a .zip, .7z or folder");
     } else tree = vfs::from_disk(path);
     Mods out;
     find_mod_dirs(tree.get(), "mod:" + tree->name, out);

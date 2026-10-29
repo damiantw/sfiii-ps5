@@ -19,7 +19,9 @@ Early. Only the swapchain test title (below) has run on the console. What exists
   any combination of them.
 - **Translation patcher** (`src/patch`): a C++ port of sfiii-native's `tools/sf3patch`. Its
   output is byte-identical to the Python patcher's for all five discs, with or without add-ons.
-  It can write a new image or patch in place. Downloading the translation project's latest
+  It can write a new image or patch in place. Add-ons can be `.zip`, `.7z` or folders
+  (`.7z` through the LZMA SDK's public-domain decoder; encrypted archives are not supported).
+  Downloading the translation project's latest
   release and add-ons is opt-in.
 - **Menu** (`src/menu`, Dear ImGui): the launcher has the four disc slots, disc status,
   the translation page and the download page; the in-game overlay has save/load state (10 slots),
@@ -31,7 +33,7 @@ Early. Only the swapchain test title (below) has run on the console. What exists
 - the debug server, its client and the crash handler (`docs/devtools.md`)
 - a `ps5/param.json` skeleton and the clean-room MIT title platform (`docs/platform.md`)
 
-Still to come: the Vulkan backend, the PS5 network transport for downloads, `.7z` add-ons, and
+Still to come: the Vulkan backend, the PS5 network transport for downloads, and
 the packaging scripts.
 
 ### Supported discs
@@ -90,7 +92,8 @@ build/sf3patch patch disc.cue --package ... --in-place     # replaces the BIN/CU
 timestamps; that is how the tests compare against the Python patcher.
 
 CI (`.github/workflows/ci.yml`) builds everything and runs the tests that need no game data: the
-debug server test, `patch_quirks` against the Python patcher, `vk_scene_test` and `vk_menu_test`
+debug server test, `patch_quirks` against the Python patcher, `tests/sevenzip_test.sh` (synthetic files packed
+five ways with the 7-Zip CLI), `vk_scene_test` and `vk_menu_test`
 (Mesa's lavapipe software Vulkan, SDL2 virtual controller), and the disc-data and release checks.
 
 The Vulkan tests and the menu's gamepad code need the Vulkan headers/loader and SDL2 on PC

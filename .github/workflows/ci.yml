@@ -13,7 +13,7 @@ jobs:
       - name: No disc data
         run: tools/ci/no-disc-data.sh
       - name: Packages (Vulkan, lavapipe, SDL2)
-        run: sudo apt-get update && sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers libsdl2-dev
+        run: sudo apt-get update && sudo apt-get install -y libvulkan-dev mesa-vulkan-drivers libsdl2-dev p7zip-full
       - name: Configure
         run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release -DSF3_PS5_DEVTOOLS=ON
       - name: Build
@@ -22,6 +22,8 @@ jobs:
         run: tools/devtools/test_sf3dev.py build/test_debug_server
       - name: Patcher quirks vs the Python patcher
         run: python3 tests/patch_quirks.py external/sfiii-native build
+      - name: .7z add-on decoder
+        run: tests/sevenzip_test.sh build
       - name: Vulkan scene test (lavapipe)
         run: build/vk_scene_test
       - name: Vulkan menu test (lavapipe, SDL2 virtual pad)
