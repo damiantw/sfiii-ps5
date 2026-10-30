@@ -26,6 +26,8 @@
 #include "imgui.h"
 #include "saturn.h"
 #include "host/host.h"
+#include "video/video.h"
+#include "host/wide_sprites.h"
 #include <cstdio>
 #if SF3_PS5_DEVTOOLS
 #include "devtools/debug_server.h"
@@ -192,9 +194,35 @@ PerfClock::time_point g_perf_last_pace, g_perf_work_from;   // the frame's start
 }
 void host_present(const Frame& f) {
     Call c("present");
+    // 16:9 (menu): the expanded field, as the desktop app's GPU path builds it. vdp1_gpu_available
+    // makes the runtime keep each field's VDP1 quads and per-dot composition records (only while
+    // 16:9 is on; 4:3 is the plain software path as before); WideSprites draws the side columns'
+    // sprites from them. Movies and flat 2D screens: vdp2_compose_wide declines, 4:3 is shown.
+    static Frame wide_frame;
+    static sf3ps5::WideSprites wide_sprites;
+    const bool wide = g_host->wide();
+    if (vdp1_widescreen() != wide) { vdp1_widescreen(wide); vdp1_gpu_available(wide); vdp1_hd_collect(wide); }
+    bool expanded = false;
+    if (wide && f.w > 0) {
+        auto w0 = PerfClock::now();
+        bool composed = vdp2_compose_wide(wide_frame, &f);
+        auto w1 = PerfClock::now();
+        expanded = composed && wide_sprites.draw(wide_frame);
+        auto w2 = PerfClock::now();
+        // stderr every 600 fields: what 16:9 costs (VDP2 side columns, then the sprites in them)
+        static double t_compose, t_sprites; static int n_wide, n_fields;
+        t_compose += std::chrono::duration<double, std::milli>(w1 - w0).count();
+        t_sprites += std::chrono::duration<double, std::milli>(w2 - w1).count();
+        n_wide += expanded;
+        if (++n_fields == 600) {
+            std::fprintf(stderr, "wide: %d/600 fields 16:9, compose %.2f ms, sprites %.2f ms avg\n", n_wide, t_compose / 600, t_sprites / 600);
+            t_compose = t_sprites = 0, n_wide = n_fields = 0;
+        }
+    }
+    const Frame& shown = expanded ? wide_frame : f;
     sf3_perf_wait = 1;   // the swapchain present blocks on the display
     auto p0 = PerfClock::now();
-    g_host->present(f.px.data(), f.w, f.h, f.origin_x, f.native_w);
+    g_host->present(shown.px.data(), shown.w, shown.h, shown.origin_x, shown.native_w);
     sf3_perf_wait = 0;
     g_perf_work_from = PerfClock::now();
     sf3_perf_present((unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(g_perf_work_from - p0).count());

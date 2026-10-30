@@ -81,6 +81,7 @@ public:
     // inside a wider field (16:9), as the runtime's Frame has them.
     void present(const uint32_t* px, int w, int h, int origin_x, int native_w);
     void pace(uint64_t now_ns);                  // host_pace
+    bool wide() const { return settings_.aspect == menu::Aspect::Ratio16x9; }   // 16:9 picked in the menu
     bool wants_frame(uint64_t vblanks) const;    // host_wants_frame
     void poll();                                 // a field that is not shown: pad and menu only
     uint16_t pad(int slot);                      // host_pad
