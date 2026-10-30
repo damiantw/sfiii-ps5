@@ -27,6 +27,11 @@ struct ScanOptions {
     int max_depth = 3;
     bool hash = true;
     std::function<void(const std::string& path)> progress;
+    // Results file (empty: none). An image whose folder is unchanged (every file's size and
+    // mtime) reuses its cached identity instead of being read and hashed again.
+    std::string cache_path;
+    bool refresh = false;       // ignore the cache (the user's Rescan), then rewrite it
+    int* reused = nullptr;      // out: how many came from the cache
 };
 
 std::vector<std::string> find_images(const std::string& root, int max_depth = 3);

@@ -153,7 +153,7 @@ void Menu::launcher() {
     for (auto& a : r.all) unknown += !a.ok || a.cls.slot == disc::Slot::None;
     if (unknown) ImGui::TextDisabled("%zu other images were not recognised", unknown);
     ImGui::BeginDisabled(jobs_.busy());
-    if (ImGui::Button("Rescan")) jobs_.start_scan(s_.data_dir);
+    if (ImGui::Button("Rescan")) jobs_.start_scan(s_.data_dir, true);
     if (!diag_.empty()) ImGui::TextDisabled("%s", diag_.c_str());
     ImGui::EndDisabled();
     ImGui::TextDisabled("frame %d", ImGui::GetFrameCount());   // a moving number: the screen is live

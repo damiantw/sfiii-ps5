@@ -173,13 +173,17 @@ void Jobs::start_prepare(const std::string& title, PrepareBody body) {
     });
 }
 
-void Jobs::start_scan(const std::string& dir) {
-    run(JobKind::Scan, "Scanning " + dir, [this, dir] {
+void Jobs::start_scan(const std::string& dir, bool refresh) {
+    run(JobKind::Scan, "Scanning " + dir, [this, dir, refresh] {
         disc::ScanOptions o;
+        o.cache_path = scan_cache, o.refresh = refresh;
+        int reused = 0;
+        o.reused = &reused;
         o.progress = [this](const std::string& p) { log("reading " + disc::path_name(p)); };
         auto r = disc::scan(dir, o);
         { std::lock_guard<std::mutex> l(mu_); scan_ = r; }
-        log("found " + std::to_string(r.all.size()) + " images");
+        log("found " + std::to_string(r.all.size()) + " images" +
+            (reused ? " (" + std::to_string(reused) + " unchanged since the last scan)" : ""));
         if (r.all.empty()) {  // say why, on one line (the status shows the last message)
             auto err = [](bool ok) { return ok ? std::string("ok") : std::string(std::strerror(errno)); };
             struct stat st;

@@ -20,7 +20,7 @@ static void print_identity(const Disc& d, const Identity& r) {
 
 int main(int argc, char** argv) {
     if (argc < 3 || (strcmp(argv[1], "identify") && strcmp(argv[1], "scan") && strcmp(argv[1], "files") && strcmp(argv[1], "probe"))) {
-        fprintf(stderr, "usage: sf3disc identify IMAGE [--no-hash] | files IMAGE | scan DIR [--no-hash] | probe IMAGE [EXTRACT_DIR [PROFILES_DIR]]\n");
+        fprintf(stderr, "usage: sf3disc identify IMAGE [--no-hash] | files IMAGE | scan DIR [--no-hash] [--cache FILE] | probe IMAGE [EXTRACT_DIR [PROFILES_DIR]]\n");
         return 2;
     }
     bool hash = !(argc > 3 && !strcmp(argv[3], "--no-hash"));
@@ -53,6 +53,8 @@ int main(int argc, char** argv) {
         }
         ScanOptions o;
         o.hash = hash;
+        int reused = 0;
+        for (int i = 3; i + 1 < argc; i++) if (!strcmp(argv[i], "--cache")) o.cache_path = argv[i + 1], o.reused = &reused;
         o.progress = [](const std::string& p) { fprintf(stderr, "reading %s\n", p.c_str()); };
         ScanResult r = scan(argv[2], o);
         for (auto& c : r.all) {
@@ -63,6 +65,7 @@ int main(int argc, char** argv) {
         }
         for (int s = 1; s <= 4; s++)
             printf("slot %-12s %s\n", slot_name(Slot(s)), r.slot[s] < 0 ? "(missing)" : r.all[size_t(r.slot[s])].path.c_str());
+        if (!o.cache_path.empty()) printf("cache: %d of %zu reused\n", reused, r.all.size());
         return 0;
     } catch (const std::exception& e) {
         fprintf(stderr, "sf3disc: %s\n", e.what());
