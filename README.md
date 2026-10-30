@@ -1,96 +1,184 @@
-# sfiii-ps5
+# Shining Force III for PlayStation 5
 
-PS5 port of [sfiii-native](https://github.com/damiantw/sfiii-native) (the Shining Force III static recompilation).
-This repo holds the PS5-only parts:
-- packaging and the title ID (PPSA93303)
-- the Vulkan renderer backend
-- the on-console disc patcher and menu
-- dev tools
+Play **Shining Force III**, all three Scenarios and the Premium Disc, on a jailbroken PS5. This is a
+homebrew port of [sfiii-native](https://github.com/damiantw/sfiii-native), a static recompilation of the
+Sega Saturn game: it runs natively on the console with Vulkan graphics, the DualSense, save states,
+fast-forward, 4:3 or 16:9, and the fan translation applied **on the console**.
 
-The recompiler port and the SH-2 interpreter fallback live in the fork, which is the submodule at `external/sfiii-native`.
+**No game data is included.** You need your own disc images. The app builds each disc's game code
+from your image the first time you start it, and can download and apply the English translation for you.
 
-**No game data.** Nothing here is derived from the discs: no code, no bytes, no BIOS, no translation
-patch files. Disc images are read and built **on the console** from the user's own BIN/CUE or CHD files.
+![Home screen](docs/images/home-tile.png)
 
-## Status
-Early. Only the swapchain test title (below) has run on the console. What exists, all tested on Linux:
-- **Disc layer** (`src/disc`): reads BIN/CUE and CHD images, identifies the four discs by their
-  Redump hashes (IP.BIN as a fallback), and scans a folder (default `/data/shiningforceiii`) for
-  any combination of them.
-- **Translation patcher** (`src/patch`): a C++ port of sfiii-native's `tools/sf3patch`. Its
-  output is byte-identical to the Python patcher's for all five discs, with or without add-ons.
-  It can write a new image or patch in place. Add-ons can be `.zip`, `.7z` or folders
-  (`.7z` through the LZMA SDK's public-domain decoder; encrypted archives are not supported).
-  Downloading the translation project's latest
-  release and add-ons is opt-in. On the console it goes through the system HTTP library
-  (`src/patch/fetch_sce`): HTTPS with the system's certificate checks and the console's own DNS.
-  If the console's DNS blocks the server, copy the files by hand instead. Tested against a fake
-  of the library, not yet on the console.
-- **Menu** (`src/menu`, Dear ImGui): the launcher has the four disc slots, disc status,
-  the translation page and the download page; the in-game overlay has save/load state (10 slots),
-  speed 1x/2x/3x with hold-to-fast-forward, and 4:3 or 16:9 display. It draws through Vulkan
-  (`src/vulkan/menu_vk`) on top of the game picture, and the gamepad drives it: touchpad or
-  Options opens and closes it, L1/R1 switch tabs, the d-pad or left stick moves, Cross picks,
-  Circle goes back. While it is closed, holding R2 fast-forwards. Tested on Linux (lavapipe and an
-  SDL2 virtual controller) and on the console (save, load and slot switching, 1x/2x/3x and R2,
-  4:3 and 16:9). The slot list shows each slot's age; Save and Load close the menu so the
-  machine reaches its safe point, and "slot N saved/loaded" shows when it is done. `src/runtime/runtime_host` connects it to
-  the saturn-recomp runtime: save/load go to the runtime's native states (one folder per disc,
-  10 slots; the result shows in the menu once the runtime has written or loaded the state at its
-  next safe moment), the game pauses while the overlay is open, and the speed and R2
-  fast-forward go to the pacer.
-- **PS5 host** (`src/host`, `docs/host.md`): the runtime's `host_*` calls and the app's `main`.
-  It shows the game field over Vulkan, placed 4:3 or 16:9, with the menu drawn over it. It paces
-  at 1x/2x/3x and holds R2 to fast-forward. The DualSense works as a Saturn pad, laid out as in
-  sfiii-native: Square A, Cross B, Circle C, Triangle X, L2 Y, R2 Z, L1 L, R1 R, Options START.
-  With hold-to-fast-forward on, Z moves to R3. Sound plays at 48 kHz, through SDL2 on PC and
-  `libSceAudioOut` on the console. On the console the pad is read with `libScePad`.
-  Launching a disc or quitting to the launcher restarts the app (one disc per process).
-  On the PS5 this uses `sceSystemServiceLaunchApp` and has not been tried on the console. If it
-  fails, the app just exits and you start it again from the home screen. Tested on Linux with
-  synthetic frames, and on PC with the game (`docs/pc-run.md`): boot, controls, sound, the
-  menu, save/load states, fast-forward, switching discs and quitting to the launcher.
-  Not yet on the console.
-  Our build refuses saturn-recomp's optional `SATURN_VDP1_GPL` renderer, which would make it GPL.
-- the debug server, its client and the crash handler (`docs/devtools.md`)
-- the clean-room MIT title platform (`docs/platform.md`) and the console title build (below)
+## Credits
 
-Still to come: the first run of the full app on the console.
+- The Shining Force III translation project
+  ([Shining Force Central](https://sf3transftp.shiningforcecentral.com/)): the English patch (V25) and its add-ons, which the app downloads and applies.
+  None of its files are in this repo.
+- [saturn-recomp](https://github.com/damiantw/saturn-recomp) and
+  [sfiii-native](https://github.com/damiantw/sfiii-native): the Saturn recompiler and runtime this port runs on.
+- [mihawk-99](https://github.com/mihawk-99): PS5_Vulkan, PS5_Mesa (RADV on the PS5) and PS5_PayloadSDK.
+- [ps5-payload-dev/sdk](https://github.com/ps5-payload-dev/sdk) (John Törnblom).
+- [Dear ImGui](https://github.com/ocornut/imgui), [miniz](https://github.com/richgel999/miniz) and the
+  LZMA SDK (see [docs/third-party.md](docs/third-party.md)).
 
-### Supported discs
-Redump dumps, as BIN/CUE or CHD: Scenario 1 (USA), Scenario 2 (Japan, 1.003 and Rev A 2.000),
-Scenario 3 (Japan) and the Premium Disc (Japan). An image that is already translated is also
-recognised. Put them, in any combination, in `/data/shiningforceiii` (subfolders up to 3 levels
-deep are fine, e.g. one folder per disc with its `.cue` and `(Track 1)`/`(Track 2)` `.bin` files).
-If a scan finds nothing, the Discs log says why: the folder cannot be opened (with the system's
-reason) or which entries it holds. On the PS5 the title's sandbox currently cannot open `/data`
-("Operation not permitted"), so discs are not found there yet.
+## Requirements
 
-### Translating on the console
-In the menu: **Discs → Translate...** (or the **Translation** tab). It needs the translation
-project's `SF3Patch.exe` in `/data/shiningforceiii/translation/`, and optionally its add-on zips
-in `translation/V25+/`. Copy them there yourself, or turn on **Download → Allow downloading** and
-press **Download**. Nothing is downloaded unless you do that. Tick or untick patches as in the
-wizard, then choose one of:
-- Default (**Replace the original** unticked): writes a new `<name> (Translated).bin/.cue`
-  beside the original.
-- **Replace the original** ticked (BIN/CUE only, asks first): the original files are kept as `.bak`
-  files; delete them once the game works. (A checkbox, as the pad could not reach the old radio
-  buttons on the console.)
+- A jailbroken PS5 running a homebrew environment (etaHEN or similar).
+- [ShadowMountPlus](https://github.com/drakmor/ShadowMountPlus) or a similar tool that registers
+  homebrew in `/data/homebrew/` as a title, so **PPSA93303** ("Shining Force III") appears on the home screen.
+- Your own Shining Force III disc images (see [Your disc images](#your-disc-images)).
 
-The launcher picks a translated image over the original for each slot.
+## Install
 
-### First launch of a disc
-The first time you start each disc, the app shows **Preparing** while it builds that disc's
-game code from the disc itself (once per disc, in C++ on the console). The result is kept in
-`/data/shiningforceiii/cache/`, so later launches start straight away. Delete that folder to
-rebuild it. Nothing made from a disc ships with the app. See [docs/pc-run.md](docs/pc-run.md).
+1. Get the `PPSA93303` folder: download `PPSA93303.zip` from the
+   [Releases](https://github.com/damiantw/sfiii-ps5/releases) page and unzip it, or build it yourself
+   ([Building the console title](#building-the-console-title)).
+2. Copy it to a staging folder on the console first, e.g. `/data/sf3stage/PPSA93303`, with a file
+   manager, a USB drive or FTP.
+3. Move (rename) it to `/data/homebrew/PPSA93303`, so `eboot.bin` ends up at
+   `/data/homebrew/PPSA93303/eboot.bin`. Moving it in one step keeps ShadowMountPlus from seeing a
+   half-copied folder; if it does, it stops retrying the title until the console reboots.
+4. Let ShadowMountPlus register it. "Shining Force III" appears on the home screen.
+
+## Your disc images
+
+Put your images in **`/data/shiningforceiii/`** (create it). Any layout works, up to 3 folders deep,
+for example one folder per disc. Each image can be **BIN/CUE** (the `.cue` plus its `(Track 1)` and
+`(Track 2)` `.bin` files) or a single **CHD**. The app finds them by content, not by name.
+
+| Disc | Region and version | Serial | Redump | Data track (Track 1) SHA-1 |
+|---|---|---|---|---|
+| Scenario 1 | USA, V1.001 | MK-81383 | [20315](http://redump.org/disc/20315/) | `9b1033304091b3dea7c2fd6d88914a1c7d0c6727` |
+| Scenario 2 | Japan, V1.003 (*Nerawareta Miko*) | GS-9188 | [20117](http://redump.org/disc/20117/) | `82c157dbad2f50bd8d1fd9b417233221ab9fd8c8` |
+| Scenario 2 | Japan, Rev A, V2.000 | GS-9188 | [3508](http://redump.org/disc/3508/) | `e21f7ad51af3ef57af9f9f7db58afb2dd642e3ad` |
+| Scenario 3 | Japan, V1.001 (*Hyouheki no Jashinguu*) | GS-9203 | [3507](http://redump.org/disc/3507/) | `6a2646030ff74a98b666726b78003e6505d24285` |
+| Premium Disc | Japan, V1.000 | 6106979 | [28747](http://redump.org/disc/28747/) | `1b5de342984618965d25494f329cb317452b7a6e` |
+
+You need at least one. Either Scenario 2 version works; you only need one of them.
+The Japanese discs (Scenario 2, 3 and the Premium Disc) play in English once translated
+([below](#translating-on-the-console)); an untranslated Japanese image shows "not a supported revision".
+Images you already translated on a PC with the project's patcher (V25.1) are recognised too.
+The European and Japanese releases of Scenario 1 are recognised but not supported: use the USA disc.
+
+Check a dump on a PC with `sha1sum "… (Track 1).bin"`; the hash must match the table (the full SHA-256
+of both tracks is in [src/disc/identify.cpp](src/disc/identify.cpp)). If a dump is not recognised,
+the **Discs** page says why.
+
+## Playing
+
+![Disc picker](docs/images/launcher-discs.png)
+
+Start **Shining Force III** from the home screen. The **Discs** page lists every image found, with the
+scenario and whether it is the original or translated; the list from the last scan appears straight
+away and is refreshed in the background. Press **Play** next to a disc. The first time you start each
+disc the app shows **Preparing** for a minute or two while it builds that disc's game code; it is kept in
+`/data/shiningforceiii/cache/` and later launches start at once.
+
+| Scenario 1 | Scenario 2 |
+|---|---|
+| ![Scenario 1](docs/images/sc1.png) | ![Scenario 2](docs/images/sc2.png) |
+| **Scenario 2 (Rev A)** | **Scenario 3** |
+| ![Scenario 2 Rev A](docs/images/sc2-reva.png) | ![Scenario 3](docs/images/sc3.png) |
+| **Premium Disc** | **Premium Disc menu** |
+| ![Premium Disc](docs/images/premium-title.png) | ![Premium Disc menu](docs/images/premium-menu.png) |
+
+### Controls
+
+The DualSense works as a Saturn pad: **Square** A, **Cross** B, **Circle** C, **Triangle** X, **L2** Y,
+**R2** Z, **L1** L, **R1** R, **Options** START. Hold **R2** to fast-forward (Z then moves to R3).
+
+The **touchpad** opens the in-game menu: save and load states (10 slots per disc), speed 1x/2x/3x,
+4:3 or 16:9, and **Quit to launcher** to pick another disc. In menus, L1/R1 switch tabs, the d-pad moves,
+Cross picks and Circle goes back. The game pauses while the menu is open.
+
+![In-game menu](docs/images/ingame-menu.png)
+
+Saves made in the game itself go to one Saturn backup memory, `/data/shiningforceiii/saves/backup.bin`,
+shared by all discs, so carrying your save from Scenario 1 into Scenarios 2 and 3 works as on the Saturn.
+
+### 4:3 or 16:9
+
+![4:3 and 16:9](docs/images/aspect-4x3-vs-16x9.png)
+
+4:3 (left) shows the picture as the Saturn did. 16:9 (right) stretches it to fill the screen. Change it in
+**Settings** or the in-game menu.
 
 ### Settings
-They are stored in `/data/shiningforceiii/settings.txt`: speed, fast-forward hold, 4:3/16:9,
-sharp pixels, menu size, download opt-in, add-ons, and the patch mode.
 
-## Console title
+![Settings](docs/images/launcher-settings.png)
+
+Speed, hold-to-fast-forward, 4:3/16:9, sharp pixels (nearest-neighbour scaling), **low latency**
+(two swapchain images instead of three, about one frame less delay; restart to apply) and the menu size.
+They are saved in `/data/shiningforceiii/settings.txt`.
+
+## Translating on the console
+
+Scenario 2, Scenario 3 and the Premium Disc were only released in Japanese. The app can apply the
+fan translation to your images itself:
+
+![Translation page](docs/images/launcher-translation.png)
+
+1. **Get the patch.** On the **Download** page, tick **Allow downloading** and press **Download**. The app
+   fetches the translation project's **latest version** from sf3transftp.shiningforcecentral.com (`SF3Patch.exe`, which holds the patch data) and
+   the optional **add-ons** (V25+) over HTTPS into `/data/shiningforceiii/translation/`. Nothing is
+   downloaded unless you do this. If your network blocks it, copy `SF3Patch.exe` to
+   `/data/shiningforceiii/translation/` and the add-on zips to `translation/V25+/` yourself.
+2. **Choose a disc** on the **Translation** page (or press **Translate…** next to it on the Discs page).
+3. **Pick patches.** The list matches the project's Windows patcher: the translation itself, the English
+   artwork and the bug fixes are ticked by default, and **Include add-ons** adds the optional V25+
+   patches (music fixes, Mod Essentials and so on). Untick anything you don't want.
+4. **Choose where it goes:**
+   - **New image** (default): writes `<name> (Translated).bin/.cue` beside the original, which stays
+     untouched. Needs as much free space as the disc.
+   - **Replace the original** (BIN/CUE only, asks first): patches the image in place and keeps the
+     original files as `.bak`; delete those once the translated disc plays.
+5. Press **Patch**. The Discs page then lists the translated image, and **Play** uses it in place of the
+   original.
+
+![Download page](docs/images/launcher-download.png)
+
+## Data folder
+
+Everything that belongs to you lives in `/data/shiningforceiii/`, outside the app folder, so updating
+or reinstalling the app never touches it:
+
+```
+/data/shiningforceiii/
+  <your disc images>       BIN/CUE or CHD, any layout
+  translation/             SF3Patch.exe and V25+/ add-ons (downloaded or copied)
+  saves/                   in-game saves (backup.bin, shared by all discs)
+  states/                  save states, 10 slots per disc
+  settings.txt             settings
+  cache/                   game code built from your discs (safe to delete; rebuilt on the next start)
+  logs/
+```
+
+Back up `saves/` and `states/` to keep your progress.
+
+## Known issues
+
+- The first start of each disc takes a minute or two (**Preparing**); later starts are quick.
+- Switching discs restarts the app, so the screen goes black for a moment.
+
+## License
+
+MIT (see [LICENSE](LICENSE)). Third-party code is MIT/BSD-compatible; there is no GPL/LGPL code, and no
+game data, translation files or BIOS are included.
+
+---
+
+# For developers
+
+This repo holds the PS5-only parts: packaging and the title ID (PPSA93303), the Vulkan renderer backend,
+the on-console disc patcher and menu, and dev tools. The recompiler port and the SH-2 interpreter fallback
+live in [sfiii-native](https://github.com/damiantw/sfiii-native), the submodule at `external/sfiii-native`.
+Code layout: `src/disc` (BIN/CUE and CHD reading, identification, scanning), `src/patch` (a C++ port of
+sfiii-native's `tools/sf3patch`, byte-identical to the Python patcher), `src/menu` (Dear ImGui launcher and
+overlay), `src/host` ([docs/host.md](docs/host.md)), `src/runtime`, the debug server
+([docs/devtools.md](docs/devtools.md)) and the MIT title platform ([docs/platform.md](docs/platform.md)).
+
+## Building the console title
 
 `tools/ps5/build-title.sh` builds the app as a homebrew folder title,
 `build/ps5-title/PPSA93303/` (title ID: `docs/title-id.md`). It contains `eboot.bin`,
@@ -124,12 +212,10 @@ row in `sf3_last_row` and returns 0. The dynlib data is rebuilt in the layout sy
 the thread-local exports sit in the RELRO segment. `SF3_COMPANION_EXPORTS=none|notls|full` (default
 full) selects a variant for bisecting.
 
-Status: the companion loads on the console and the title reaches the launcher. Two things were
-required: the module's DT_INIT must return 0 (a bare `ret` left eax set and libSceLibcInternal
+Two things were required for the companion to load: the module's DT_INIT must return 0 (a bare `ret` left eax set and libSceLibcInternal
 rejected the module with `PRX_SCE_MODULE_LOAD_ERROR`), and the needed-module entries carry version
 1.1 with export library ids following the import libraries, as system modules do. The companion no
-longer imports libSceLibcInternal. Discs are not reachable yet: the title's sandbox cannot open
-`/data` ("Operation not permitted"), so the Discs tab finds no images (see the disc section).
+longer imports libSceLibcInternal.
 
 ## Console test title (swapchain)
 
