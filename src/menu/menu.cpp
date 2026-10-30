@@ -260,6 +260,8 @@ void Menu::settings_page() {
     int a = s_.aspect == Aspect::Ratio16x9;
     if (ImGui::Combo("Display", &a, "4:3\0" "16:9 (where the game draws it)\0")) { s_.aspect = a ? Aspect::Ratio16x9 : Aspect::Ratio4x3; changed(); }
     if (ImGui::Checkbox("Sharp pixels", &s_.sharp_pixels)) changed();
+    if (ImGui::Checkbox("Low latency (restart to apply)", &s_.low_latency)) changed();
+    if (ImGui::IsItemHovered()) ImGui::SetTooltip("One frame less input lag; may stutter if the system flips late.");
     if (ImGui::SliderFloat("Menu size", &s_.ui_scale, 1.0f, 3.0f, "%.1f")) changed();
 }
 

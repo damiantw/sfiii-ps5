@@ -12,7 +12,8 @@ namespace sf3ps5 {
 class Display {
 public:
     // scene must have been init(why, true). Picks the largest mode (4K on the PS5).
-    bool open(VkScene& scene, std::string& why);
+    // low_latency: the minimum swapchain (2 images) instead of 3.
+    bool open(VkScene& scene, std::string& why, bool low_latency = false);
     // Acquire, present_to(r) and queue present. Blocks on FIFO (vsync).
     bool frame(Rect r, bool nearest, std::string& why, const Overlay& overlay = nullptr);
     VkFormat format() const { return format_; }

@@ -299,7 +299,7 @@ int main(int argc, char** argv) {
         screen = std::move(o);
     } else {
 #if defined(SF3_PS5_CONSOLE)
-        if (!display.open(scene, why)) { std::fprintf(stderr, "display: %s\n", why.c_str()); return 1; }
+        if (!display.open(scene, why, settings.low_latency)) { std::fprintf(stderr, "display: %s\n", why.c_str()); return 1; }
         screen = std::make_unique<host::DisplayScreen>(display);
 #else
         auto w = std::make_unique<host::WindowScreen>(scene, 1280, 720);
@@ -419,6 +419,7 @@ int main(int argc, char** argv) {
     struct stat pst;
     ph.vsync_paced = !offscreen && stat("/data/sfiii/pace-timer", &pst) != 0;
     std::fprintf(stderr, "pacing: %s\n", ph.vsync_paced ? "vsync" : "timer");
+    ph.no_fresh_pad = stat("/data/sfiii/pad-vblank", &pst) == 0;
 #endif
 
     if (!in_game) {   // the launcher: until a disc is chosen

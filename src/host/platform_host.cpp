@@ -1,4 +1,5 @@
 // MIT, see LICENSE.
+#include <cstdio>
 #include <algorithm>
 #include "platform_host.h"
 #include "saturn_pad.h"
@@ -37,6 +38,7 @@ sf3ps5::Rect PlatformHost::rect() const {
 
 void PlatformHost::input() {
     last_pad_ = read_ ? read_() : menu::PadState{};
+    last_read_ = last_vblank_read_ = Pacer::Clock::now();
     ImGuiIO& io = ImGui::GetIO();
     bool in_game = menu_.in_game();
     // In game, Options is START and only the touchpad opens the menu; once open, either closes it.
@@ -119,6 +121,22 @@ bool PlatformHost::wants_frame(uint64_t vblanks) const {
 
 uint16_t PlatformHost::pad(int slot) {
     if (slot != 0 || menu_.visible()) return 0;
+    // The game samples the pad mid-field (SMPC INTBACK); read it again here rather than use the
+    // read from the last VBlank, up to a field old. Menu navigation still runs from input().
+    auto now = Pacer::Clock::now();
+    // How old the VBlank read is when the game samples it, and how old the read the game gets:
+    // stderr "pad: ..." every 600 samples (the latency gained by the fresh read).
+    double vb_age = std::chrono::duration<double, std::milli>(now - last_vblank_read_).count();
+    if (!no_fresh_pad && read_ && now - last_read_ > std::chrono::milliseconds(2)) {
+        menu::PadState p = read_();
+        last_pad_ = p, last_read_ = now;
+    }
+    age_vb_ += vb_age, age_used_ += std::chrono::duration<double, std::milli>(now - last_read_).count();
+    if (++age_n_ == 600) {
+        std::fprintf(stderr, "pad: game sample age avg %.1f ms (VBlank read %.1f ms)%s\n", age_used_ / 600, age_vb_ / 600,
+                     no_fresh_pad ? " [fresh read off]" : "");
+        age_n_ = 0, age_vb_ = age_used_ = 0;
+    }
     return saturn_buttons(last_pad_, settings_.fast_forward_hold);
 }
 

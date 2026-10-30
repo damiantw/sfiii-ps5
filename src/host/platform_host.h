@@ -98,6 +98,7 @@ public:
     int speed() const { return pacer_.speed(); }
     std::function<void()> on_menu_frame;   // tests: drive the pad inside the in-game menu loop
     std::function<void(Pacer::Clock::duration)> sleep;
+    bool no_fresh_pad = false;   // /data/sfiii/pad-vblank: only the VBlank read (A/B)
     bool vsync_paced = false;   // the console's FIFO swapchain paces frames; see Pacer::follow
     Pacer::Clock::duration menu_frame_floor{};   // PC window: no vsync, so the menu loop waits this long a frame   // default std::this_thread::sleep_for
 
@@ -115,6 +116,9 @@ private:
     sf3ps5::MenuRenderer renderer_;
     menu::PadNav nav_;
     menu::PadState last_pad_;
+    Pacer::Clock::time_point last_read_{}, last_vblank_read_{};
+    double age_vb_ = 0, age_used_ = 0;
+    int age_n_ = 0;
     Pacer pacer_;
     int src_w_ = 0, src_h_ = 0, extra_ = 0;
     bool stopping_ = false, was_visible_ = false;
