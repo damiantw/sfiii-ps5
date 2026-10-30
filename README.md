@@ -8,8 +8,6 @@ fast-forward, 4:3 or 16:9, and the fan translation applied **on the console**.
 **No game data is included.** You need your own disc images. The app builds each disc's game code
 from your image the first time you start it, and can download and apply the English translation for you.
 
-![Home screen](docs/images/home-tile.png)
-
 ## Credits
 
 - The Shining Force III translation project
