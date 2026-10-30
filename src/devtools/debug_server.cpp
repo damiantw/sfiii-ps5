@@ -172,6 +172,10 @@ void accept_one() {
     if (fd < 0) return;
     int one = 1;
     setsockopt(fd, IPPROTO_TCP, TCP_NODELAY, &one, sizeof one);
+    // A frame is 230 KB and the send runs on the emulation thread: with the default send buffer it
+    // waited for the peer's ACKs (~0.9 s per frame over Wi-Fi, a visible hitch). Let the kernel take it.
+    int sndbuf = 2 << 20;
+    setsockopt(fd, SOL_SOCKET, SO_SNDBUF, &sndbuf, sizeof sndbuf);
     g_client = fd, g_paused = false;
     say("hello sf3dev 1");               // a fresh client starts free-running; "pause" or "step" takes over
 }
