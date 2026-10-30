@@ -11,7 +11,7 @@
 #include "video.h"
 #if SF3_PS5_DEVTOOLS
 #include "debug_server.h"
-#include "host/wide_sprites.h"
+#include "../host/wide_sprites.h"
 #include <cstdlib>
 
 #ifndef SF3_PS5_DATA_DIR
