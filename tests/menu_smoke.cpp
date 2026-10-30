@@ -166,6 +166,20 @@ int main(int argc, char** argv) {
         CHECK(r.slot[4] >= 0);
         for (int i = 1; i <= 3; i++) CHECK(r.slot[i] < 0);
         CHECK(h.has("Play") && h.has("Translate..."));
+        {   // scan cache: the second scan reuses every unchanged image; Rescan (refresh) reads them again
+            sf3::disc::ScanOptions o;
+            o.cache_path = (scratch / "scan-cache.txt").string();
+            int n1 = -1, n2 = -1, n3 = -1;
+            o.reused = &n1;
+            auto a = sf3::disc::scan(s.data_dir, o);
+            o.reused = &n2;
+            auto b = sf3::disc::scan(s.data_dir, o);
+            o.refresh = true, o.reused = &n3;
+            sf3::disc::scan(s.data_dir, o);
+            CHECK(n1 == 0 && n2 == int(a.all.size()) && n2 > 0 && n3 == 0);
+            CHECK(b.slot[4] == a.slot[4] && b.all[size_t(b.slot[4])].id.verified() == a.all[size_t(a.slot[4])].id.verified());
+            CHECK(b.all[size_t(b.slot[4])].cls.state == a.all[size_t(a.slot[4])].cls.state);
+        }
 
         // Play -> launch, overlay closes.
         CHECK(h.click("Play"));

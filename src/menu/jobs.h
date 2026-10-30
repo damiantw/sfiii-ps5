@@ -50,7 +50,9 @@ public:
     bool busy() const { return running_; }
     JobStatus status() const;
     JobStatus last(JobKind k) const;   // the most recent finished job of a kind
-    void start_scan(const std::string& dir);
+    // refresh: the user asked (Rescan): read every image again instead of the cached results.
+    void start_scan(const std::string& dir, bool refresh = false);
+    std::string scan_cache;            // results file kept between runs (empty: none)
     void start_patch(const PatchRequest& r);
     void start_fetch(const std::string& dest, std::shared_ptr<fetch::Transport> t);
     // A disc's first launch (src/prepare, run by the host): body reports progress(0..1, what) and

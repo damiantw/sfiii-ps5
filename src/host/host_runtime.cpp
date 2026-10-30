@@ -336,6 +336,11 @@ int main(int argc, char** argv) {
     ImGui::CreateContext();
     menu::setup_imgui(ImGui::GetIO());
     menu::Jobs jobs;
+#if defined(SF3_PS5_CONSOLE)
+    jobs.scan_cache = "/data/sfiii/scan-cache.txt";   // the picker opens with no re-hash of unchanged discs
+#else
+    jobs.scan_cache = settings.data_dir + "/.scan-cache.txt";   // a dot file: not part of any folder stamp
+#endif
     menu::Menu m(rt, settings, jobs, settings_path);
 #if defined(SF3_PS5_CONSOLE)
     menu::ScePad pad;
