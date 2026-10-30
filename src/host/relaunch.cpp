@@ -26,13 +26,17 @@ namespace sf3::host {
 AppArgs AppArgs::parse(int argc, char** argv) {
     AppArgs a;
     for (int i = 0; i < argc; i++)   // from 0: a LoadExec'd process may get the arguments alone
+        {
         if (!std::strcmp(argv[i], "--cue") && i + 1 < argc) a.cue = argv[++i];
+        else if (!std::strcmp(argv[i], "--menu")) a.user_quit = true;
+    }
     return a;
 }
 
 std::vector<std::string> AppArgs::argv() const {
     std::vector<std::string> v;
     if (!cue.empty()) v = {"--cue", cue};
+    else if (user_quit) v = {"--menu"};
     return v;
 }
 

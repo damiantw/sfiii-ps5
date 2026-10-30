@@ -239,6 +239,13 @@ static void relaunch_test(const char* self) {
     a = host::AppArgs::parse(3, v);
     CHECK(a.cue == "/d/disc 1.cue");
     CHECK(a.argv().size() == 2 && host::AppArgs{}.argv().empty());
+    {
+        host::AppArgs q; q.user_quit = true;
+        auto qv = q.argv();
+        CHECK(qv.size() == 1 && qv[0] == "--menu");
+        char* m[] = {(char*)"--menu"};
+        CHECK(host::AppArgs::parse(1, m).user_quit && host::AppArgs::parse(1, m).cue.empty());
+    }
     (void)self;
     pid_t pid = fork();
     if (pid == 0) {
