@@ -3,7 +3,7 @@
 Play **Shining Force III**, all three Scenarios and the Premium Disc, on a jailbroken PS5. This is a
 homebrew port of [sfiii-native](https://github.com/damiantw/sfiii-native), a static recompilation of the
 Sega Saturn game: it runs natively on the console with Vulkan graphics, the DualSense, save states,
-fast-forward, 4:3 or 16:9, and the fan translation applied **on the console**.
+fast-forward, 4:3 (16:9 on desktop only for now), and the fan translation applied **on the console**.
 
 **No game data is included.** You need your own disc images. The app builds each disc's game code
 from your image the first time you start it, and can download and apply the English translation for you.
@@ -97,10 +97,11 @@ shared by all discs, so carrying your save from Scenario 1 into Scenarios 2 and 
 
 ### 4:3 or 16:9
 
-![4:3 and 16:9](docs/images/aspect-4x3-vs-16x9.png)
-
-4:3 (left) shows the picture as the Saturn did. 16:9 (right) stretches it to fill the screen. Change it in
-**Settings** or the in-game menu.
+16:9 is a setting, but on the PS5 the picture stays 4:3, pillarboxed, in game and in movies. The wide
+picture is built by the desktop GPU renderer: VDP1 HD quads plus extra VDP2 columns, which
+`vdp2_compose_wide` only produces when that GPU path is active. The PS5 port draws VDP1 in
+software, so it falls back to 4:3. Movies and flat 2D screens stay 4:3 on purpose, on every platform.
+Real 16:9 on the PS5 needs that renderer ported to the console's Vulkan scene.
 
 ### Settings
 
