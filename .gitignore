@@ -3,3 +3,6 @@ __pycache__/
 *.png
 *.state
 build-*/
+!ps5/sce_sys/icon0.png
+!ps5/sce_sys/pic0.png
+!ps5/sce_sys/pic1.png
