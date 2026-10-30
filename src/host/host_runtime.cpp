@@ -36,6 +36,8 @@
 #include <filesystem>
 #include <memory>
 #include <string>
+void video_capture_debug(const std::string& directory);
+void machine_capture_debug(const std::string& directory);
 #include <cctype>
 #include <cerrno>
 #include <cstring>
@@ -396,6 +398,10 @@ int main(int argc, char** argv) {
                     for (size_t i = 0; i < size_t(W) * H; i++) std::fwrite(&(*pixels)[i * 4], 1, 3, f);
                     std::fclose(f);
                 }
+            } else if (st.op == "dump") {
+                // VDP1/VDP2 memory and work RAM into the folder st.arg (dump-N.bin, wram-*.bin)
+                try { std::filesystem::create_directories(st.arg); video_capture_debug(st.arg); machine_capture_debug(st.arg); }
+                catch (const std::exception& e) { std::fprintf(stderr, "script: dump failed: %s\n", e.what()); }
             } else if (st.op == "exit") {
                 g_relaunch = false;
                         if (in_game) api.stop("the script ended the run"); else std::exit(0);
@@ -472,6 +478,15 @@ int main(int argc, char** argv) {
     cfg.save = settings.data_dir + "/saves/backup.bin";   // one backup memory, shared by the scenarios
     cfg.settings = "-";
     cfg.out = settings.data_dir + "/logs";
+#if SF3_PS5_DEVTOOLS
+    // SF3_PS5_WATCH=LO-HI[,FROM-TO]: log each access to a memory area, with the caller (diagnosis only)
+    if (const char* w = std::getenv("SF3_PS5_WATCH")) {
+        unsigned long long lo = 0, hi = 0, from = 0, to = ~0ull;
+        if (std::sscanf(w, "%llx-%llx,%llu-%llu", &lo, &hi, &from, &to) >= 2) {
+            cfg.watch_lo = uint32_t(lo); cfg.watch_hi = uint32_t(hi); cfg.watch_from = from; cfg.watch_to = to;
+        }
+    }
+#endif
     if (sf3_x64_install_set) {   // a generic build: the game's code comes from this disc (src/prepare)
         std::string set_dir;
         if (const char* set = std::getenv("SF3_X64_SET")) {
