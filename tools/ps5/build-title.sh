@@ -50,5 +50,5 @@ python3 "$R/tools/ps5/make-fself.py" $W/eboot.elf $A/eboot.bin
 python3 "$R/tools/ps5/make-fself.py" --module $W/companion.elf $A/sce_module/libc.prx
 cp "$R"/external/sfiii-native/profiles/*.json $A/profiles/
 sed -e "s/@TITLE_ID@/$TITLE_ID/g" -e "s/@CONCEPT@/${TITLE_ID:4}/g" "$R/ps5/param.json" >$A/sce_sys/param.json
-python3 "$R/tools/ps5/make-icon.py" $A/sce_sys/icon0.png
+cp "$R"/ps5/sce_sys/icon0.png "$R"/ps5/sce_sys/pic0.png "$R"/ps5/sce_sys/pic1.png $A/sce_sys/
 echo "title folder: $A"
