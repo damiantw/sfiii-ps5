@@ -2,7 +2,11 @@
 // main.cpp): the launcher menu without a game, or one disc per process (relaunch.h).
 // Compiled against a patched runtime checkout (SF3_PS5_RUNTIME_DIR); the console build links it
 // with the runtime and the generated code. MIT, see LICENSE.
+#include "disc/cdimage.h"
 #include <sys/stat.h>
+#include <fcntl.h>
+#include <unistd.h>
+#include <thread>
 #include "platform_host.h"
 #include "relaunch.h"
 #if !defined(SF3_PS5_CONSOLE)
@@ -174,7 +178,9 @@ bool host_open() { return g_host != nullptr; }
 #if defined(SF3_PS5_CONSOLE)
 extern "C" volatile int sf3_perf_wait;                                    // fault_klog.c (profiler)
 extern "C" void sf3_perf_frame(unsigned long work_ns, unsigned long frame_ns);
+extern "C" void sf3_perf_present(unsigned long ns);
 #else
+static void sf3_perf_present(unsigned long) {}
 static volatile int sf3_perf_wait;
 static void sf3_perf_frame(unsigned long, unsigned long) {}
 #endif
@@ -185,9 +191,11 @@ PerfClock::time_point g_perf_last_pace, g_perf_work_from;   // the frame's start
 void host_present(const Frame& f) {
     Call c("present");
     sf3_perf_wait = 1;   // the swapchain present blocks on the display
+    auto p0 = PerfClock::now();
     g_host->present(f.px.data(), f.w, f.h, f.origin_x, f.native_w);
     sf3_perf_wait = 0;
     g_perf_work_from = PerfClock::now();
+    sf3_perf_present((unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(g_perf_work_from - p0).count());
 }
 void host_pace(uint64_t now) {
     Call c("pace");
@@ -195,6 +203,10 @@ void host_pace(uint64_t now) {
     if (g_perf_last_pace.time_since_epoch().count() && g_perf_work_from.time_since_epoch().count())
         sf3_perf_frame((unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(t - g_perf_work_from).count(),
                        (unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(t - g_perf_last_pace).count());
+    if (g_perf_last_pace.time_since_epoch().count() && t - g_perf_last_pace > std::chrono::milliseconds(50))
+        std::fprintf(stderr, "hitch: %.1f ms frame at %.3f s\n",
+                     std::chrono::duration<double, std::milli>(t - g_perf_last_pace).count(),
+                     std::chrono::duration<double>(t.time_since_epoch()).count());
     g_perf_last_pace = t;
     sf3_perf_wait = 1;
     g_host->pace(now);
@@ -229,22 +241,38 @@ void host_audio_report() {
     std::snprintf(m, sizeof m, "audio: 48 kHz, %d underruns, %d chunks dropped, %lld frames in, %lld loud, peak %d, rms %.1f\n",
                   s.underruns, s.dropped, s.frames, s.loud, s.peak, rms);
     std::fputs(m, stderr);
-    std::fflush(stderr);
 #if defined(SF3_PS5_CONSOLE)
     sceKernelDebugOutText(0, m);
-    if (FILE* f = std::fopen("/data/sfiii/audio.txt", "a")) { std::fputs(m, f); std::fclose(f); }
+    // A /data write can block for tens of ms on the console: off the machine's thread.
+    std::thread([line = std::string(m)] {
+        if (FILE* f = std::fopen("/data/sfiii/audio.txt", "a")) { std::fputs(line.c_str(), f); std::fclose(f); }
+    }).detach();
 #endif
 }
 
 #if defined(SF3_PS5_CONSOLE)
 extern "C" void sf3_fault_install(void);
 extern "C" void sf3_sample_start(void);
+extern "C" int sf3_stderr_fd;   // stderr_fast.c
 #endif
 int main(int argc, char** argv) {
 #if defined(SF3_PS5_CONSOLE)
     sf3_fault_install();
     mkdir("/data/sfiii", 0777);   // a title has no console: keep stderr in a file the player (or FTP) can read
+    // stderr: a pipe that a thread drains into the file (stderr_fast.c writes to it). A write
+    // through the system's stderr takes 40-100 ms, and RADV logs from its submit path.
     if (std::freopen("/data/sfiii/stderr.txt", "w", stderr)) std::setvbuf(stderr, nullptr, _IONBF, 0);
+    int log_fd = open("/data/sfiii/stderr.txt", O_WRONLY | O_APPEND);
+    int pp[2];
+    if (log_fd >= 0 && pipe(pp) == 0) {
+        sf3_stderr_fd = pp[1];
+        std::thread([r = pp[0], log_fd] {
+            char b[4096];
+            for (ssize_t n; (n = read(r, b, sizeof b)) > 0;) (void)!write(log_fd, b, size_t(n));
+        }).detach();
+    } else if (log_fd >= 0) {
+        close(log_fd);
+    }
 #endif
     host::AppArgs args = host::AppArgs::parse(argc, argv);
     std::string why;
@@ -381,6 +409,12 @@ int main(int argc, char** argv) {
 #endif
     if (!ph.init(why)) { std::fprintf(stderr, "menu: %s\n", why.c_str()); return 1; }
     g_host = &ph;
+#if defined(SF3_PS5_CONSOLE)
+    // FIFO paces the TV frames (Pacer::follow); /data/sfiii/pace-timer brings back the timer for A/B.
+    struct stat pst;
+    ph.vsync_paced = !offscreen && stat("/data/sfiii/pace-timer", &pst) != 0;
+    std::fprintf(stderr, "pacing: %s\n", ph.vsync_paced ? "vsync" : "timer");
+#endif
 
     if (!in_game) {   // the launcher: until a disc is chosen
         m.set_in_game(false);
@@ -415,6 +449,18 @@ int main(int argc, char** argv) {
     std::filesystem::create_directories(settings.data_dir + "/logs", ec);
     SaturnConfig cfg;
     cfg.cue = args.cue;
+    // The runtime reads CUE sheets only: a CHD is written out once, on the console, as the BIN/CUE
+    // chdman extractcd would make (cache/chd-<disc id>/), and the run reads that.
+    if (sf3::disc::path_suffix_lower(args.cue) == ".chd") {
+        try {
+            std::string dir = settings.data_dir + "/cache/chd-" + rt.disc_id();
+            std::fprintf(stderr, "chd: unpacking %s to %s\n", args.cue.c_str(), dir.c_str());
+            cfg.cue = sf3::disc::extract_chd(args.cue, dir);
+        } catch (const std::exception& e) {
+            std::fprintf(stderr, "chd: %s\n", e.what());
+            return 2;
+        }
+    }
     cfg.save = settings.data_dir + "/saves/backup.bin";   // one backup memory, shared by the scenarios
     cfg.settings = "-";
     cfg.out = settings.data_dir + "/logs";

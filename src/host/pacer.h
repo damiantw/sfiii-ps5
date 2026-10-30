@@ -25,6 +25,9 @@ public:
         speed_ = s;
         if (started_) base_ = t - scaled(last_now_);
     }
+    // A vsync-paced display (FIFO) already holds each present to the TV's refresh: following the
+    // machine clock as well makes two clocks beat (59.94 vs 60 Hz) and frames miss their vblank.
+    void follow(uint64_t now_ns, Clock::time_point t) { last_now_ = now_ns; base_ = t - scaled(now_ns); started_ = true; }
     int speed() const { return speed_; }
     void restart() { started_ = false; }   // after a pause: the next field is due at once
 private:

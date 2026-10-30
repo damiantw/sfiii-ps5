@@ -48,7 +48,7 @@ private:
     int speed_ = 1;
     float volume_ = 1.0f;
     Stats stats_;
-    static constexpr int kLeadMs = 60, kMaxMs = 200;
+    static constexpr int kLeadMs = 60, kMaxMs = 200, kTargetMs = 90;
 };
 
 }  // namespace sf3::host

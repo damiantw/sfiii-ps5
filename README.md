@@ -197,8 +197,18 @@ A PS5 title may not use libc `opendir`/`realpath`/`getcwd` (EPERM). The disc sca
 - Profiler: `/data/sfiii/sample.enable` turns on a sampler in `fault_klog.c`. Any content logs the
   main thread's rip every 500 ms; `perf` takes 1 kHz samples instead and sorts them into
   x64 (the module set the loader mapped), eboot, other (system libraries) and wait (present/pace),
-  plus frame time and work time per frame. Every 10 s it writes a `[sf3 perf]` line to klog and
-  `/data/sfiii/perf.txt`.
+  plus frame time and work time per frame. Every 7 s it writes `[sf3 perf]` lines to klog: totals,
+  a frame-time histogram, present time and each frame over 25 ms split into work / acquire / draw /
+  queue. `perf frames` skips the sampling (frame times only); `perf file` also appends to
+  `/data/sfiii/perf.txt`. Any frame over 50 ms prints a `hitch:` line to stderr.
+- Frame pacing: the FIFO swapchain (3 images) paces the machine at the TV's 60 Hz (`Pacer::follow`);
+  the audio resampler nudges its rate by up to 0.5% to keep its queue near 90 ms, so nothing is
+  dropped. `/data/sfiii/pace-timer` brings back the Saturn-clock timer, `/data/sfiii/swap2` two images.
+- stderr: the system libc's stderr took 40-100 ms a write on the console, and RADV logs a line from its
+  submit path every 10 s, a 100 ms hitch each time. `stderr_fast.c` (`--wrap=fprintf` etc.) formats
+  stderr text itself and writes it to a pipe that a thread drains into `/data/sfiii/stderr.txt`.
+- A `.chd` given to the runtime (`launch=` or the menu) is unpacked once to
+  `/data/shiningforceiii/cache/chd-<disc id>/` and played from there.
 - 4:3 leaves out the frame's first column, which on many screens holds the VDP2 back-screen colour
   (a blue stripe a CRT hides in overscan).
 - The dev-build debug server listens on port 9200 by default: a title's bind on 9300/9301 fails with EACCES.

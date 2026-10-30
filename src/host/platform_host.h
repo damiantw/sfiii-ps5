@@ -98,9 +98,11 @@ public:
     int speed() const { return pacer_.speed(); }
     std::function<void()> on_menu_frame;   // tests: drive the pad inside the in-game menu loop
     std::function<void(Pacer::Clock::duration)> sleep;
+    bool vsync_paced = false;   // the console's FIFO swapchain paces frames; see Pacer::follow
     Pacer::Clock::duration menu_frame_floor{};   // PC window: no vsync, so the menu loop waits this long a frame   // default std::this_thread::sleep_for
 
 private:
+    bool presented_ = false;   // a field reached the swapchain since the last pace
     void input();
     sf3ps5::Rect rect() const;
     sf3ps5::VkScene& scene_;

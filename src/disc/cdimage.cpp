@@ -475,6 +475,34 @@ ChdImage open_chd(const std::string& path) {
     return {cue, std::make_shared<ChdSource>(f, path, std::move(tracks))};
 }
 
+std::string extract_chd(const std::string& chd_path, const std::string& dir,
+                        const std::function<void(uint64_t, uint64_t)>& progress) {
+    ChdImage img = open_chd(chd_path);
+    const std::string bin = path_join(dir, "disc.bin"), cue = path_join(dir, "disc.cue");
+    const uint64_t total = img.bin->size();
+    struct stat st;
+    if (file_exists(cue) && stat(bin.c_str(), &st) == 0 && uint64_t(st.st_size) == total) return cue;
+    mkdir(dir.c_str(), 0777);
+    unlink(cue.c_str());
+    const std::string part = bin + ".part";
+    FILE* f = std::fopen(part.c_str(), "wb");
+    if (!f) throw DiscError("cannot write " + part);
+    std::vector<uint8_t> buf(1 << 20);
+    uint64_t off = 0;
+    while (off < total) {
+        size_t n = img.bin->read(off, buf.data(), size_t(std::min<uint64_t>(buf.size(), total - off)));
+        if (n == 0 || std::fwrite(buf.data(), 1, n, f) != n) { std::fclose(f); unlink(part.c_str()); throw DiscError("cannot write " + part); }
+        off += n;
+        if (progress) progress(off, total);
+    }
+    if (std::fclose(f) != 0 || std::rename(part.c_str(), bin.c_str()) != 0) { unlink(part.c_str()); throw DiscError("cannot write " + bin); }
+    FILE* c = std::fopen(cue.c_str(), "wb");
+    if (!c) throw DiscError("cannot write " + cue);
+    bool ok = std::fwrite(img.cue_text.data(), 1, img.cue_text.size(), c) == img.cue_text.size();
+    if (std::fclose(c) != 0 || !ok) { unlink(cue.c_str()); throw DiscError("cannot write " + cue); }
+    return cue;
+}
+
 // ---------------------------------------------------------------- ISO 9660
 
 namespace {

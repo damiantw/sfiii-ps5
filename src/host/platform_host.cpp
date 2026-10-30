@@ -86,7 +86,7 @@ void PlatformHost::present(const uint32_t* px, int w, int h, int origin_x, int n
         src_w_ = w, src_h_ = h;
         extra_ = native_w > 0 && native_w < w ? origin_x : 0;
     }
-    ui_frame();
+    presented_ = ui_frame();
     // The menu is open over the game: the machine waits here until it closes (or a launch/quit
     // begins). Display FIFO paces this loop at the TV's rate.
     while (menu_.visible() && menu_.in_game() && !stopping_) {
@@ -107,6 +107,7 @@ void PlatformHost::poll() {
 }
 
 void PlatformHost::pace(uint64_t now_ns) {
+    if (vsync_paced && presented_) { presented_ = false; pacer_.follow(now_ns, Pacer::Clock::now()); return; }
     auto d = pacer_.wait(now_ns, Pacer::Clock::now());
     if (d.count() > 0 && sleep) sleep(d);
 }

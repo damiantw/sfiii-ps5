@@ -44,6 +44,12 @@ void AudioOut::push(const int16_t* lr, int frames) {
     std::deque<int16_t> out;
     std::lock_guard<std::mutex> l(mu_);
     stats_.count(lr, frames);
+    // Rate control: the display, not the Saturn clock, paces the machine (60 Hz against the
+    // Saturn's 59.94), so the queue would creep up and drop whole chunks (audible). Nudge the
+    // resampling by up to 0.5% to hold it near kTargetMs instead.
+    double fill_ms = double(queue_.size()) / 2 * 1000 / kOutRate;
+    double adj = std::clamp((fill_ms - kTargetMs) / kTargetMs * 0.005, -0.005, 0.005);
+    rs_.set_ratio(double(kInRate) * speed_ / kOutRate * (1.0 + adj));
     rs_.run(lr, frames, volume_, out);
     if (queue_.empty()) { ++stats_.underruns; queue_.insert(queue_.end(), size_t(kOutRate) * kLeadMs / 1000 * 2, 0); }
     if ((queue_.size() + out.size()) / 2 * 1000 / kOutRate > size_t(kMaxMs)) { ++stats_.dropped; return; }
