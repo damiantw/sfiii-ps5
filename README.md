@@ -101,7 +101,9 @@ made from a disc: each disc's game code is built on the console at its first lau
 below, plus `SATURN_RUNTIME` (saturn-recomp's `runtime/` with sfiii-native's
 `tools/runtime-diagnostics.patch`). `VULKAN_INCLUDE` must hold Vulkan-Headers 1.4.354 or newer and
 nothing else (not `/usr/include`, which puts the host libc ahead of libc++). `TITLE_ID=` and `OUT=`
-override the defaults. The build also writes `sce_sys/icon0.png` (a generated gradient).
+override the defaults. The build also copies the home-screen art from `ps5/sce_sys/` (`icon0.png` 512x512,
+`pic0.png`/`pic1.png` 1920x1080), made from the US title screen as rendered by the port, with the
+sides widened to 16:9 and the copyright line removed.
 
 To install, copy the folder to a staging path such as `/data/sf3stage/` first, then rename it into
 `/data/homebrew/` so ShadowMountPlus sees it complete. If it finds the folder half-copied or without
