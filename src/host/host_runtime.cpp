@@ -414,6 +414,7 @@ int main(int argc, char** argv) {
     struct stat pst;
     ph.vsync_paced = !offscreen && stat("/data/sfiii/pace-timer", &pst) != 0;
     std::fprintf(stderr, "pacing: %s\n", ph.vsync_paced ? "vsync" : "timer");
+    ph.no_fresh_pad = stat("/data/sfiii/pad-vblank", &pst) == 0;
 #endif
 
     if (!in_game) {   // the launcher: until a disc is chosen

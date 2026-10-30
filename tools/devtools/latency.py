@@ -1,50 +1,45 @@
 #!/usr/bin/env python3
-"""Input-to-frame latency on the console through the debug server (MIT).
+"""Input latency on the console, for A/B runs of the latency settings (MIT).
 
-Taps a button N times and, for each, times (wall clock and vblanks) until the game's native
-frame changes. That is the emulation side: pad read -> game reacts -> field composed. The display
-queue adds (swapchain images - 1) refreshes on top; the console log line "display: ... images N"
-gives N. With --rp, also asks ps5ctl for the end-to-end figure (pad -> Remote Play video).
-
-  latency.py [--button RIGHT] [--n 20] [--rp]
-Use on a screen where the button visibly moves something (a cursor or the hero), unpaused.
+  latency.py rp   [--button DOWN --back UP --n 20]  pad -> Remote Play video change (ps5ctl --measure).
+      Use on a host-drawn screen that reacts on the next frame (the launcher list). The stream adds a
+      constant, so compare medians between builds or settings rather than reading them as absolute.
+  latency.py host [--host 192.168.1.70]             the console's own figures from /data/sfiii/stderr.txt:
+      "display: ... images N" (FIFO queue: up to N-1 refreshes between present and scan-out) and
+      "pad: game sample age ..." (how old the controller read is when the game samples it).
+The emulated game's own reaction time (fields from SMPC read to a changed picture) is the game's and
+is the same on Beetle; the debug server's live state load is not frame-exact, so it is not measured here.
 """
-import argparse, hashlib, json, statistics, subprocess, sys, time, os
-sys.path.insert(0, os.path.dirname(__file__))
-import sf3dev
+import argparse, json, re, statistics, subprocess, sys, time, urllib.request
 
-def h(fr): return hashlib.md5(bytes(fr.rgb if hasattr(fr, "rgb") else fr.buf)).digest()
-
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--button", default="RIGHT"); ap.add_argument("--back", default="LEFT")
-    ap.add_argument("--n", type=int, default=20); ap.add_argument("--rp", action="store_true")
-    a = ap.parse_args()
-    c = sf3dev.Client()
-    ms, vb = [], []
+def rp(a):
+    ms = []
     for i in range(a.n):
-        btn = a.button if i % 2 == 0 else a.back
-        # settle: wait for two identical frames so idle animation does not count as a reaction
-        prev = h(c.frame())
-        for _ in range(60):
-            cur = h(c.frame())
-            if cur == prev: break
-            prev = cur
-        v0 = c.ping(); t0 = time.monotonic()
-        c.pad(btn)
-        while time.monotonic() - t0 < 1.0:
-            if h(c.frame()) != prev:
-                ms.append((time.monotonic() - t0) * 1000); vb.append(c.ping() - v0); break
-        time.sleep(0.3)
-    out = {"button": a.button, "samples": len(ms)}
-    if ms:
-        out.update(ms_median=round(statistics.median(ms), 1), ms_max=round(max(ms), 1),
-                   vblanks_median=statistics.median(vb), vblanks=vb)
-    if a.rp:
-        r = subprocess.run(["/workspace/ps5ctl/ps5ctl", "press", a.button, "--hold", "250", "--measure"],
+        b = a.button if i % 2 == 0 else a.back
+        r = subprocess.run(["/workspace/ps5ctl/ps5ctl", "press", b, "--hold", "250", "--measure"],
                            capture_output=True, text=True)
-        out["remote_play"] = r.stdout.strip()
-    print(json.dumps(out, indent=1))
+        try:
+            v = json.loads(r.stdout.strip().splitlines()[-1]).get("press_to_visible_change_ms")
+            if v is not None: ms.append(float(v))
+        except Exception:
+            print(r.stdout, r.stderr, file=sys.stderr)
+        time.sleep(0.6)
+    return {"mode": "rp", "samples": ms, "median_ms": statistics.median(ms) if ms else None,
+            "min_ms": min(ms) if ms else None}
+
+def host(a):
+    t = urllib.request.urlopen(f"ftp://{a.host}:2121/data/sfiii/stderr.txt", timeout=20).read().decode(errors="replace")
+    disp = re.findall(r"display: .*images (\d+)", t)
+    pads = re.findall(r"pad: game sample age avg ([\d.]+) ms \(VBlank read ([\d.]+) ms\)(.*)", t)
+    return {"mode": "host", "swapchain_images": int(disp[-1]) if disp else None,
+            "pad_sample_age_ms": [float(p[0]) for p in pads[-5:]],
+            "pad_vblank_read_age_ms": [float(p[1]) for p in pads[-5:]],
+            "fresh_read": bool(pads) and "off" not in pads[-1][2]}
 
 if __name__ == "__main__":
-    main()
+    ap = argparse.ArgumentParser()
+    ap.add_argument("mode", choices=["rp", "host"])
+    ap.add_argument("--button", default="DOWN"); ap.add_argument("--back", default="UP")
+    ap.add_argument("--n", type=int, default=20); ap.add_argument("--host", default="192.168.1.70")
+    a = ap.parse_args()
+    print(json.dumps(rp(a) if a.mode == "rp" else host(a), indent=1))
