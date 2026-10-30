@@ -1,7 +1,7 @@
 // Launching a disc and quitting to the launcher restart the app: one game per process, so a
 // disc always boots into a fresh runtime (and its own scenario's code), and quitting never has
 // to unwind a running machine. The app's mode is in its arguments: none = the launcher,
-// --cue <image> = that disc.
+// --cue <image> = that disc, --menu = the launcher after the player quit (dev auto-launch off).
 //
 // PC: execv of the running binary. PS5 (SF3_PS5_CONSOLE builds): sceSystemServiceLaunchApp with
 // our own title ID, then the process exits; this is unverified on the console. Until it is
@@ -16,6 +16,7 @@ namespace sf3::host {
 
 struct AppArgs {
     std::string cue;                 // empty: the launcher
+    bool user_quit = false;          // --menu: the player quit to the launcher; never auto-launch
     static AppArgs parse(int argc, char** argv);
     std::vector<std::string> argv() const;   // without the program name
 };

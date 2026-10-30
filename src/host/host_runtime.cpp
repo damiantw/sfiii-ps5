@@ -324,7 +324,7 @@ int main(int argc, char** argv) {
         api.stop("Another disc was chosen in the menu");
         if (g_host) g_host->stop();
     };
-    launcher.quit = [&] { g_next = {}, g_relaunch = true; if (g_host) g_host->stop(); };
+    launcher.quit = [&] { g_next = {}, g_next.user_quit = true, g_relaunch = true; if (g_host) g_host->stop(); };
     runtime::RuntimeHost rt(api, launcher, settings.data_dir + "/states");
     rt.settings_changed(settings);
 #if defined(SF3_PS5_CONSOLE)
@@ -421,7 +421,9 @@ int main(int argc, char** argv) {
         m.open(menu::Page::Launcher);
 #if SF3_PS5_DEVTOOLS
         launcher_dev_start(m, rt);
-        if (!g_dev_launch.empty()) g_launch_cue = g_dev_launch;
+        // launch= is for automated cold starts only: after the player quits, show the picker.
+        if (!g_dev_launch.empty() && !args.user_quit) g_launch_cue = g_dev_launch;
+        else if (!g_dev_launch.empty()) std::fprintf(stderr, "devtools: launch= ignored after quit to loader\n");
 #endif
         while (g_launch_cue.empty()) {
 #if SF3_PS5_DEVTOOLS

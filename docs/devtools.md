@@ -61,4 +61,4 @@ deterministic as `--agent`: the same presses at the same VBlanks give the same r
 Build with `SF3_PS5_DEVTOOLS=ON tools/ps5/build-title.sh`. The launcher reads `/data/sfiii/devtools.enable` too:
 
 - `port=N`: the launcher listens for the same protocol, and `pad [N.]BUTTON+...` holds menu buttons (UP DOWN LEFT RIGHT CROSS CIRCLE SQUARE TRIANGLE L1 R1 OPTIONS TOUCHPAD) for N frames. Use port 9200: a title's bind elsewhere (9300, 9301) is refused with EACCES. The launcher's last line shows the result.
-- `launch=/data/shiningforceiii/DIR/NAME.cue`: start that disc right away with no input, for automated runs.
+- `launch=/data/shiningforceiii/DIR/NAME.cue`: start that disc right away with no input, for automated cold starts. It is ignored after "Quit to loader" (the relaunch passes `--menu`), and release builds (SF3_PS5_DEVTOOLS off) never read it.
