@@ -12,6 +12,7 @@ struct Settings {
     Aspect aspect = Aspect::Ratio4x3;
     float ui_scale = 2.0f;         // 1.5 - 3.0 on a TV
     bool sharp_pixels = true;      // nearest-neighbour vs linear
+    bool low_latency = false;      // two swapchain images instead of three (applies at next start)
     bool allow_download = false;   // opt-in: fetch the translation package from the project's server
     bool include_addons = true;    // apply the V25+ add-ons when patching
     bool patch_in_place = false;   // false: write a new <name>-v25_1 image beside the original

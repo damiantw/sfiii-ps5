@@ -37,6 +37,7 @@ sf3ps5::Rect PlatformHost::rect() const {
 
 void PlatformHost::input() {
     last_pad_ = read_ ? read_() : menu::PadState{};
+    last_read_ = Pacer::Clock::now();
     ImGuiIO& io = ImGui::GetIO();
     bool in_game = menu_.in_game();
     // In game, Options is START and only the touchpad opens the menu; once open, either closes it.
@@ -119,6 +120,13 @@ bool PlatformHost::wants_frame(uint64_t vblanks) const {
 
 uint16_t PlatformHost::pad(int slot) {
     if (slot != 0 || menu_.visible()) return 0;
+    // The game samples the pad mid-field (SMPC INTBACK); read it again here rather than use the
+    // read from the last VBlank, up to a field old. Menu navigation still runs from input().
+    auto now = Pacer::Clock::now();
+    if (read_ && now - last_read_ > std::chrono::milliseconds(2)) {
+        menu::PadState p = read_();
+        last_pad_ = p, last_read_ = now;
+    }
     return saturn_buttons(last_pad_, settings_.fast_forward_hold);
 }
 

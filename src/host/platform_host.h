@@ -115,6 +115,7 @@ private:
     sf3ps5::MenuRenderer renderer_;
     menu::PadNav nav_;
     menu::PadState last_pad_;
+    Pacer::Clock::time_point last_read_{};
     Pacer pacer_;
     int src_w_ = 0, src_h_ = 0, extra_ = 0;
     bool stopping_ = false, was_visible_ = false;

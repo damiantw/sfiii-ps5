@@ -299,7 +299,7 @@ int main(int argc, char** argv) {
         screen = std::move(o);
     } else {
 #if defined(SF3_PS5_CONSOLE)
-        if (!display.open(scene, why)) { std::fprintf(stderr, "display: %s\n", why.c_str()); return 1; }
+        if (!display.open(scene, why, settings.low_latency)) { std::fprintf(stderr, "display: %s\n", why.c_str()); return 1; }
         screen = std::make_unique<host::DisplayScreen>(display);
 #else
         auto w = std::make_unique<host::WindowScreen>(scene, 1280, 720);

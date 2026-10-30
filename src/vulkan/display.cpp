@@ -8,7 +8,7 @@ namespace sf3ps5 {
 
 #define VKD(x, what) do { VkResult r_ = (x); if (r_ != VK_SUCCESS) { why = std::string(what) + " failed: " + std::to_string(r_); return false; } } while (0)
 
-bool Display::open(VkScene& scene, std::string& why) {
+bool Display::open(VkScene& scene, std::string& why, bool low_latency) {
     s_ = &scene;
     VkPhysicalDevice phys = scene.physical_device();
     uint32_t n = 0;
@@ -50,7 +50,8 @@ bool Display::open(VkScene& scene, std::string& why) {
     ci.surface = surface_;
     // Three images: with two, any late flip on the system side holds the next frame's draw.
     // /data/sfiii/swap2 brings back two (A/B on the console).
-    uint32_t want = 3;
+    // Low latency (settings): two, one frame less queued between the pad and the TV.
+    uint32_t want = low_latency ? 2 : 3;
     if (FILE* f = std::fopen("/data/sfiii/swap2", "rb")) std::fclose(f), want = 2;
     ci.minImageCount = caps.minImageCount < want ? want : caps.minImageCount;
     if (caps.maxImageCount && ci.minImageCount > caps.maxImageCount) ci.minImageCount = caps.maxImageCount;
