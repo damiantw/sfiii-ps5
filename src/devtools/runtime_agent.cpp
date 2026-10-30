@@ -11,6 +11,7 @@
 #include "video.h"
 #if SF3_PS5_DEVTOOLS
 #include "debug_server.h"
+#include "../host/wide_sprites.h"
 #include <cstdlib>
 
 #ifndef SF3_PS5_DATA_DIR
@@ -27,6 +28,9 @@ bool hook_press(const std::string& s, std::string& e) { return smpc_press(s, e);
 bool hook_frame(uint32_t& w, uint32_t& h, std::string& rgb) {
     static Frame f;
     vdp2_compose(f);
+    static Frame wide;   // 16:9: the picture the host shows, side columns included
+    static sf3ps5::WideSprites sprites;
+    if (vdp1_widescreen() && f.w > 0 && vdp2_compose_wide(wide, &f) && sprites.draw(wide)) f = wide;
     if (f.w <= 0 || f.h <= 0) return false;
     w = uint32_t(f.w), h = uint32_t(f.h);
     rgb.resize(f.px.size() * 3);
