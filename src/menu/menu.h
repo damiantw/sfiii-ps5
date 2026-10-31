@@ -72,7 +72,8 @@ private:
     bool reproducible_ = false;
     bool visible_ = true, in_game_ = false, scanned_ = false;
     Page page_ = Page::Launcher;
-    int patch_target_ = -1;                     // index into the scan's candidates
+    int patch_target_ = -1;
+    std::string restore_target_;                // cue the "Restore original?" prompt is about                     // index into the scan's candidates
     PatchList list_;
     std::string list_error_;
     std::vector<bool> ticks_;

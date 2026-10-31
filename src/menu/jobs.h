@@ -33,7 +33,7 @@ struct PatchList {
 // What the wizard would offer for this disc (fast: no track hashing).
 PatchList list_patches(const PatchRequest& r);
 
-enum class JobKind { None, Scan, Patch, Fetch, Prepare };
+enum class JobKind { None, Scan, Patch, Fetch, Prepare, Restore };
 
 struct JobStatus {
     uint64_t id = 0;
@@ -55,6 +55,9 @@ public:
     std::string scan_cache;            // results file kept between runs (empty: none)
     void start_patch(const PatchRequest& r);
     void start_fetch(const std::string& dest, std::shared_ptr<fetch::Transport> t);
+    // Undo an in-place patch: put the <file>.bak originals back once every one matches the
+    // recorded Redump hashes; refuses (and changes nothing) otherwise.
+    void start_restore(const std::string& cue);
     // A disc's first launch (src/prepare, run by the host): body reports progress(0..1, what) and
     // throws on failure.
     using PrepareBody = std::function<void(const std::function<void(double, const std::string&)>&)>;
@@ -66,12 +69,18 @@ private:
     void log(const std::string& m);
     void progress(double p);
     mutable std::mutex mu_;
-    JobStatus st_, last_[5];
+    JobStatus st_, last_[6];
     disc::ScanResult scan_;
     std::atomic<bool> running_{false};
     uint64_t next_id_ = 0;
     std::thread th_;
 };
+
+// What restoring `cue` would do, checked without hashing: empty when the .bak set is present.
+std::string restore_precheck(const std::string& cue);
+// Synchronous restore (also used by the job). Throws with a user-facing message on refusal.
+void restore_original(const std::string& cue, const std::function<void(const std::string&)>& log,
+                      const std::function<void(double)>& progress);
 
 // Runs a patch synchronously (also used by the job): returns the track 1 SHA-1.
 std::string patch_disc(const PatchRequest& r, const std::function<void(const std::string&)>& log,

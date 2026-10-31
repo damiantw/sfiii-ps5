@@ -166,9 +166,17 @@ fan translation to your images itself:
    - **New image** (default): writes `<name> (Translated).bin/.cue` beside the original, which stays
      untouched. Needs as much free space as the disc.
    - **Replace the original** (BIN/CUE only, asks first): patches the image in place and keeps the
-     original files as `.bak`; delete those once the translated disc plays.
+     original files as `.bak`; delete those once the translated disc plays (or keep them to undo it,
+     see below).
 5. Press **Patch**. The Discs page then lists the translated image, and **Play** uses it in place of the
    original.
+
+**Undoing "Replace the original".** While the `.bak` files are still there, the Discs page shows
+**Restore…** next to the translated disc. After you confirm, it first hashes the backups and compares
+them with the recorded checksums of the untranslated Redump disc (the same table used to recognise
+discs). If a backup is missing or doesn't match, it changes nothing and says which file is wrong.
+Otherwise it renames the backups back to their original names and deletes the translated image, so the
+disc is exactly as it was. You can translate it again afterwards.
 
 ![Download page](docs/images/launcher-download.png)
 
