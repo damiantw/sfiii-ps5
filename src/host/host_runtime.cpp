@@ -28,6 +28,7 @@
 #include "host/host.h"
 #include "video/video.h"
 #include "host/wide_sprites.h"
+#include "../vulkan/geometry_pack.h"
 #include <cstdio>
 #if SF3_PS5_DEVTOOLS
 #include "devtools/debug_server.h"
@@ -206,14 +207,21 @@ void host_present(const Frame& f) {
     // sprites from them. Movies and flat 2D screens: vdp2_compose_wide declines, 4:3 is shown.
     static Frame wide_frame;
     static sf3ps5::WideSprites wide_sprites;
+    static sf3ps5::GeometryPack pack;
     const bool wide = g_host->wide();
-    if (vdp1_widescreen() != wide) { vdp1_widescreen(wide); vdp1_gpu_available(wide); vdp1_hd_collect(wide); }
+    // 3D resolution 2x (menu): the whole field goes through sfiii-native's geometry shader on the GPU
+    // (VDP1 quads at 2x, VDP2 and the composition records per dot), as the desktop app draws it.
+    const int scale = g_host->render_scale();
+    const bool gpu = wide || scale > 1;
+    if (vdp1_widescreen() != wide || vdp1_render_scale() != scale || vdp1_gpu_active() != gpu) {
+        vdp1_widescreen(wide), vdp1_gpu_available(gpu), vdp1_hd_collect(gpu), vdp1_render_scale(scale);
+    }
     bool expanded = false;
     if (wide && f.w > 0) {
         auto w0 = PerfClock::now();
         bool composed = vdp2_compose_wide(wide_frame, &f);
         auto w1 = PerfClock::now();
-        expanded = composed && wide_sprites.draw(wide_frame);
+        expanded = composed && (scale > 1 || wide_sprites.draw(wide_frame));
         auto w2 = PerfClock::now();
 #if SF3_PS5_DEVTOOLS
         // dev builds, stderr every 600 fields: what 16:9 costs (VDP2 side columns, then the sprites in them)
@@ -233,7 +241,37 @@ void host_present(const Frame& f) {
     g_shown = &shown, g_shown_vblank = sat_vblanks();
     sf3_perf_wait = 1;   // the swapchain present blocks on the display
     auto p0 = PerfClock::now();
-    g_host->present(shown.px.data(), shown.w, shown.h, shown.origin_x, shown.native_w);
+    bool drawn = false;
+    if (scale > 1 && shown.w > 0) {
+        auto g0 = PerfClock::now();
+        pack.pack(shown, scale);
+        auto g1 = PerfClock::now();
+        drawn = g_host->present_scene(pack.data, pack.tex, shown.w, shown.h, scale, shown.origin_x, shown.native_w);
+        if (!drawn) std::fprintf(stderr, "2x: GPU pass failed (%s); 1x picture\n", g_host->error().c_str());
+#if SF3_PS5_DEVTOOLS
+        static double t_pack; static int n_2x;
+        t_pack += std::chrono::duration<double, std::milli>(g1 - g0).count();
+        if (++n_2x == 600) {
+            std::fprintf(stderr, "2x: pack %.2f ms avg, %zu quads, scene %zu KiB, textures %zu KiB\n", t_pack / 600,
+                         shown.hd ? shown.hd->quads.size() : size_t(0), pack.data.size() / 256, pack.tex.size() / 256);
+            t_pack = 0, n_2x = 0;
+        }
+        // /data/sfiii/scene.req: the next GPU pass is written to /data/sfiii/scene.ppm (full 2x size)
+        static int n_req;
+        if (++n_req % 30 == 0 && std::remove("/data/sfiii/scene.req") == 0) {
+            std::vector<uint8_t> rgba; int w = 0, h = 0;
+            if (drawn && g_host->read_scene(rgba, w, h))
+                if (FILE* o = std::fopen("/data/sfiii/scene.ppm", "wb")) {
+                    std::fprintf(o, "P6\n%d %d\n255\n", w, h);
+                    for (size_t i = 0; i + 3 < rgba.size(); i += 4) std::fwrite(&rgba[i], 1, 3, o);
+                    std::fclose(o);
+                }
+        }
+#else
+        (void)g0, (void)g1;
+#endif
+    }
+    if (!drawn) g_host->present(shown.px.data(), shown.w, shown.h, shown.origin_x, shown.native_w);
     sf3_perf_wait = 0;
     g_perf_work_from = PerfClock::now();
     sf3_perf_present((unsigned long)std::chrono::duration_cast<std::chrono::nanoseconds>(g_perf_work_from - p0).count());
