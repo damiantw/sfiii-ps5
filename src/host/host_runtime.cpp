@@ -180,6 +180,7 @@ bool host_launch(SaturnConfig&) { return false; }   // the app's main runs the l
 bool host_open() { return g_host != nullptr; }
 
 #if defined(SF3_PS5_CONSOLE)
+extern "C" int sceSystemServiceGetStatus(void* status);   // libSceSystemService
 extern "C" volatile int sf3_perf_wait;                                    // fault_klog.c (profiler)
 extern "C" void sf3_perf_frame(unsigned long work_ns, unsigned long frame_ns);
 extern "C" void sf3_perf_present(unsigned long ns);
@@ -209,7 +210,8 @@ void host_present(const Frame& f) {
         auto w1 = PerfClock::now();
         expanded = composed && wide_sprites.draw(wide_frame);
         auto w2 = PerfClock::now();
-        // stderr every 600 fields: what 16:9 costs (VDP2 side columns, then the sprites in them)
+#if SF3_PS5_DEVTOOLS
+        // dev builds, stderr every 600 fields: what 16:9 costs (VDP2 side columns, then the sprites in them)
         static double t_compose, t_sprites; static int n_wide, n_fields;
         t_compose += std::chrono::duration<double, std::milli>(w1 - w0).count();
         t_sprites += std::chrono::duration<double, std::milli>(w2 - w1).count();
@@ -218,6 +220,9 @@ void host_present(const Frame& f) {
             std::fprintf(stderr, "wide: %d/600 fields 16:9, compose %.2f ms, sprites %.2f ms avg\n", n_wide, t_compose / 600, t_sprites / 600);
             t_compose = t_sprites = 0, n_wide = n_fields = 0;
         }
+#else
+        (void)w0, (void)w1, (void)w2;
+#endif
     }
     const Frame& shown = expanded ? wide_frame : f;
     sf3_perf_wait = 1;   // the swapchain present blocks on the display
@@ -374,8 +379,26 @@ int main(int argc, char** argv) {
     menu::Menu m(rt, settings, jobs, settings_path);
 #if defined(SF3_PS5_CONSOLE)
     menu::ScePad pad;
+    // PS button: when the system UI covers the game (Control Center, the home screen), the game
+    // pauses with the in-game menu open, so it is not running unseen, and leaving from there
+    // (Close Game, another app) kills a paused machine. Backup memory is already on disk: the
+    // runtime writes it at the game's every save. Status bytes 4/5: system UI overlaid, in background.
+    int status_poll = 0;
+    bool covered = false;
     std::function<menu::PadState()> read = [&] {
         menu::PadState p = pad.read();
+        if (in_game && ++status_poll >= 15) {
+            status_poll = 0;
+            alignas(8) uint8_t st[256] = {};
+            if (sceSystemServiceGetStatus(st) == 0) {
+                bool now = st[4] || st[5];
+                if (now && !covered) {
+                    std::fprintf(stderr, "system ui: covered (%d %d)%s\n", st[4], st[5], m.visible() ? "" : "; pausing");
+                    if (!m.visible()) m.open(menu::Page::InGame);
+                }
+                covered = now;
+            }
+        }
         if (!in_game) {
 #if SF3_PS5_DEVTOOLS
             m.set_diag(pad.diag() + g_dev_status);
