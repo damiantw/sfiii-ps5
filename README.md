@@ -90,6 +90,12 @@ The **touchpad** opens the in-game menu: save and load states (10 slots per disc
 4:3 or 16:9, and **Quit to launcher** to pick another disc. In menus, L1/R1 switch tabs, the d-pad moves,
 Cross picks and Circle goes back. The game pauses while the menu is open.
 
+The **PS button** works as usual. While the Control Center or the home screen covers the game, the
+game pauses with the in-game menu open, so nothing runs unseen; resume from the menu when you come back.
+To leave, close the game from the system (Control Center, or Options on the home-screen tile, then
+**Close Game**). Your in-game saves are already on disk: the backup memory is written at every save the
+game makes, so closing the app loses nothing that the game saved.
+
 ![In-game menu](docs/images/ingame-menu.png)
 
 Saves made in the game itself go to one Saturn backup memory, `/data/shiningforceiii/saves/backup.bin`,
@@ -196,6 +202,11 @@ nothing else (not `/usr/include`, which puts the host libc ahead of libc++). `TI
 override the defaults. The build also copies the home-screen art from `ps5/sce_sys/` (`icon0.png` 512x512,
 `pic0.png`/`pic1.png` 1920x1080), made from the US title screen as rendered by the port, with the
 sides widened to 16:9 and the copyright line removed.
+
+A release build leaves the debug server out (`SF3_PS5_DEVTOOLS=OFF`, the default) and keeps the
+16:9 timing line out of `stderr.txt`. `tools/ps5/package-release.sh` (with the same `OUT=`) turns the
+folder into `dist/PPSA93303.zip` plus `dist/SHA256SUMS`, the files on the Releases page, and refuses a dev
+build. It is a ZIP of the folder, not a signed `.pkg`: homebrew titles install as a folder.
 
 To install, copy the folder to a staging path such as `/data/sf3stage/` first, then rename it into
 `/data/homebrew/` so ShadowMountPlus sees it complete. If it finds the folder half-copied or without
