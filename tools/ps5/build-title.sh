@@ -51,4 +51,6 @@ python3 "$R/tools/ps5/make-fself.py" --module $W/companion.elf $A/sce_module/lib
 cp "$R"/external/sfiii-native/profiles/*.json $A/profiles/
 sed -e "s/@TITLE_ID@/$TITLE_ID/g" -e "s/@CONCEPT@/${TITLE_ID:4}/g" "$R/ps5/param.json" >$A/sce_sys/param.json
 cp "$R"/ps5/sce_sys/icon0.png "$R"/ps5/sce_sys/pic0.png "$R"/ps5/sce_sys/pic1.png $A/sce_sys/
+# home-screen background (tile highlighted) and launch background: 4K BC7 DDS (tools/ps5/make-pic-dds.py)
+cp "$R"/ps5/sce_sys/pic0.dds $A/sce_sys/pic0.dds; cp "$R"/ps5/sce_sys/pic0.dds $A/sce_sys/pic1.dds
 echo "title folder: $A"
