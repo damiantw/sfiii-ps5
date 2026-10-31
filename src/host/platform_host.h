@@ -80,6 +80,14 @@ public:
     // host_present: one game field, 0x00RRGGBB, top row first. origin_x/native_w: the 4:3 window
     // inside a wider field (16:9), as the runtime's Frame has them.
     void present(const uint32_t* px, int w, int h, int origin_x, int native_w);
+    // 2x 3D: the field's packed geometry scene (GeometryPack), drawn by geometry.hlsl at w*scale x h*scale
+    // on the GPU and shown like present(). false: the GPU pass failed (show the CPU picture instead).
+    bool present_scene(const std::vector<uint32_t>& data, const std::vector<uint32_t>& tex, int w, int h, int scale,
+                       int origin_x, int native_w);
+    // 1 or 2 (menu: 3D resolution); 1 when the geometry shader could not be loaded
+    int render_scale() const { return geometry_ok_ ? settings_.render_scale : 1; }
+    // dev builds: the last GPU pass, RGBA8 (w*scale x h*scale), for 1x/2x comparisons
+    bool read_scene(std::vector<uint8_t>& rgba, int& w, int& h);
     void pace(uint64_t now_ns);                  // host_pace
     bool wide() const { return settings_.aspect == menu::Aspect::Ratio16x9; }   // 16:9 picked in the menu
     bool wants_frame(uint64_t vblanks) const;    // host_wants_frame
@@ -104,7 +112,11 @@ public:
     Pacer::Clock::duration menu_frame_floor{};   // PC window: no vsync, so the menu loop waits this long a frame   // default std::this_thread::sleep_for
 
 private:
-    bool presented_ = false;   // a field reached the swapchain since the last pace
+    bool presented_ = false;
+    bool geometry_ok_ = false;   // geometry.hlsl built a pipeline on this device
+    int scale_ = 1;              // the shown picture is scale_ x the field (a GPU pass), else 1
+    std::vector<uint32_t> last_data_, last_tex_;
+    void shown();   // a field reached the swapchain since the last pace
     void input();
     sf3ps5::Rect rect() const;
     sf3ps5::VkScene& scene_;

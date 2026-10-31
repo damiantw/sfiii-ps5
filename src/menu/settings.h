@@ -10,6 +10,8 @@ struct Settings {
     int speed = 1;                 // 1x, 2x, 3x
     bool fast_forward_hold = true; // R2 held = fast forward
     Aspect aspect = Aspect::Ratio4x3;
+    static constexpr int kMaxRenderScale = 6;  // 6x (1920x1440) is the largest tested; 9x would be the last step inside 2160
+    int render_scale = 1;          // 3D (VDP1 polygons) drawn at 1x..9x on the GPU (menu offers 1-4 and 6)
     float ui_scale = 2.0f;         // 1.5 - 3.0 on a TV
     bool sharp_pixels = true;      // nearest-neighbour vs linear
     bool low_latency = false;      // two swapchain images instead of three (applies at next start)

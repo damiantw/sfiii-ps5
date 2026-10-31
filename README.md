@@ -118,9 +118,33 @@ backdrop sky is only 4:3 wide, and on some battle maps the game itself culls ter
 
 ![Settings](docs/images/launcher-settings.png)
 
-Speed, hold-to-fast-forward, 4:3/16:9, sharp pixels (nearest-neighbour scaling), **low latency**
+Speed, hold-to-fast-forward, 4:3/16:9, **3D resolution** (see below), sharp pixels (nearest-neighbour scaling), **low latency**
 (two swapchain images instead of three, about one frame less delay; restart to apply) and the menu size.
 They are saved in `/data/shiningforceiii/settings.txt`.
+
+#### 3D resolution
+
+Draws the 3D (VDP1 polygons and sprites) at a multiple of the Saturn's resolution on the PS5 GPU, using
+sfiii-native's geometry shader (as the desktop app does), then scales the picture to the TV.
+Options: **1x (original, the default)**, 2x, 3x, 4x and 6x (`render_scale=` 1-6 in settings.txt).
+
+| Setting | Internal picture, 4:3 (320x240 field) | 16:9 (about 427x240) |
+|---|---|---|
+| 1x | 320x240 (software, as before) | 427x240 |
+| 2x | 640x480 | 854x480 |
+| 3x | 960x720 | 1281x720 |
+| 4x | 1280x960 | 1708x960 |
+| 6x | 1920x1440 | 2562x1440 |
+
+On a PS5 every setting held 60 fps in battle and field scenes, in both 4:3 and 16:9. The GPU pass takes
+about 2-4 ms whatever the scale, packing the scene takes about 1 ms of CPU, and the targets use 3 MiB at 2x
+up to 32 MiB at 6x.
+
+Known limits:
+- Some battle-map polygon edges show a few dots of the background (blue) at any setting above 1x;
+  higher settings make them thinner, not fewer.
+- 2D layers (VDP2 backgrounds, text and menus) stay at the native resolution.
+- In 16:9 the game still culls terrain outside its 4:3 view, so the edges can show the floor or water plane.
 
 ## Translating on the console
 
