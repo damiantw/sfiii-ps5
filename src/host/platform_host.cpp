@@ -2,6 +2,9 @@
 #include <cstdio>
 #include <algorithm>
 #include "platform_host.h"
+#include "../vulkan/geometry_frag.inc"
+#include <cstdio>
+#include <iterator>
 #include "saturn_pad.h"
 #include "../vulkan/display.h"
 #include "imgui.h"
@@ -26,6 +29,9 @@ bool PlatformHost::init(std::string& why) {
     // Until the game shows a field (the launcher), the picture is one black pixel.
     uint32_t black = 0;
     if (!scene_.upload_picture(&black, 1, 1, why)) return false;
+    std::string gwhy;
+    geometry_ok_ = scene_.load_fragment(std::vector<uint32_t>(std::begin(kGeometryFrag), std::end(kGeometryFrag)), gwhy);
+    if (!geometry_ok_) std::fprintf(stderr, "geometry shader: %s; 3D stays 1x\n", gwhy.c_str());
     src_w_ = src_h_ = 0;
     return true;
 }
@@ -33,7 +39,9 @@ bool PlatformHost::init(std::string& why) {
 sf3ps5::Rect PlatformHost::rect() const {
     if (src_w_ <= 0) return {};   // no field yet: black screen, the menu on top
     auto a = settings_.aspect == menu::Aspect::Ratio16x9 ? sf3ps5::Aspect::Wide16x9 : sf3ps5::Aspect::Classic4x3;
-    return sf3ps5::place(screen_.width(), screen_.height(), src_w_ - 2 * extra_, src_h_, a, extra_);
+    auto r = sf3ps5::place(screen_.width(), screen_.height(), src_w_ - 2 * extra_, src_h_, a, extra_);
+    r.src_x0 *= scale_, r.src_x1 *= scale_;   // place() counts field columns; a GPU pass has scale_ per column
+    return r;
 }
 
 void PlatformHost::input() {
@@ -85,9 +93,37 @@ bool PlatformHost::ui_frame() {
 
 void PlatformHost::present(const uint32_t* px, int w, int h, int origin_x, int native_w) {
     if (scene_.upload_picture(px, w, h, error_)) {
-        src_w_ = w, src_h_ = h;
+        src_w_ = w, src_h_ = h, scale_ = 1;
         extra_ = native_w > 0 && native_w < w ? origin_x : 0;
+        last_data_.clear();
     }
+    shown();
+}
+
+bool PlatformHost::present_scene(const std::vector<uint32_t>& data, const std::vector<uint32_t>& tex, int w, int h, int scale,
+                                 int origin_x, int native_w) {
+    // an unchanged field (30 Hz pictures, menus) keeps the last pass
+    const bool same = scale_ == scale && src_w_ == w && src_h_ == h && data == last_data_ && tex == last_tex_;
+    if (!same) {
+        if (!scene_.upload(data, tex, error_) || !scene_.draw(w * scale, h * scale, 0, false, error_)) {
+            last_data_.clear();
+            return false;
+        }
+        last_data_ = data, last_tex_ = tex;
+    }
+    src_w_ = w, src_h_ = h, scale_ = scale;
+    extra_ = native_w > 0 && native_w < w ? origin_x : 0;
+    shown();
+    return true;
+}
+
+bool PlatformHost::read_scene(std::vector<uint8_t>& rgba, int& w, int& h) {
+    if (scale_ < 2 || !scene_.read_rgba(rgba, error_)) return false;
+    w = src_w_ * scale_, h = src_h_ * scale_;
+    return true;
+}
+
+void PlatformHost::shown() {
     presented_ = ui_frame();
     // The menu is open over the game: the machine waits here until it closes (or a launch/quit
     // begins). Display FIFO paces this loop at the TV's rate.

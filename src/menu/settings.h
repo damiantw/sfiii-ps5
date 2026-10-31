@@ -10,6 +10,7 @@ struct Settings {
     int speed = 1;                 // 1x, 2x, 3x
     bool fast_forward_hold = true; // R2 held = fast forward
     Aspect aspect = Aspect::Ratio4x3;
+    int render_scale = 1;          // 3D (VDP1 polygons) drawn at 1x or 2x on the GPU
     float ui_scale = 2.0f;         // 1.5 - 3.0 on a TV
     bool sharp_pixels = true;      // nearest-neighbour vs linear
     bool low_latency = false;      // two swapchain images instead of three (applies at next start)
