@@ -123,8 +123,25 @@ void Menu::launcher() {
         float tw = ImGui::CalcTextSize("Translate...").x + ImGui::GetStyle().FramePadding.x * 2;
         if (cand.cls.state == disc::State::Original) {
             if (ImGui::Button("Translate...")) { patch_target_ = c; list_ = {}; list_error_.clear(); page_ = Page::Patch; select_ = 2; }
+        } else if (cand.cls.state == disc::State::Translated && disc::path_suffix_lower(cand.path) == ".cue" &&
+                   restore_precheck(cand.path).empty()) {
+            // Patched in place: the originals are still here as .bak files.
+            if (ImGui::Button("Restore...", ImVec2(tw, 0))) { restore_target_ = cand.path; ImGui::OpenPopup("Restore the original?"); }
         } else {
             ImGui::Dummy(ImVec2(tw, ImGui::GetFrameHeight()));
+        }
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+        if (ImGui::BeginPopupModal("Restore the original?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
+            ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32);
+            ImGui::TextUnformatted(disc::path_name(restore_target_).c_str());
+            ImGui::TextWrapped("The .bak backups are checked against the recorded hashes of the untranslated disc first; "
+                               "if any is missing or does not match, nothing is changed. Then they are put back and the "
+                               "translated image is deleted (you can translate it again afterwards).");
+            ImGui::PopTextWrapPos();
+            if (ImGui::Button("Restore")) { jobs_.start_restore(restore_target_); ImGui::CloseCurrentPopup(); }
+            ImGui::SameLine();
+            if (ImGui::Button("Cancel")) ImGui::CloseCurrentPopup();
+            ImGui::EndPopup();
         }
         ImGui::EndDisabled();
         ImGui::SameLine(tx + tw + ImGui::GetStyle().ItemSpacing.x);
@@ -156,6 +173,8 @@ void Menu::launcher() {
     if (ImGui::Button("Rescan")) jobs_.start_scan(s_.data_dir, true);
     if (!diag_.empty()) ImGui::TextDisabled("%s", diag_.c_str());
     ImGui::EndDisabled();
+    auto lr = jobs_.last(JobKind::Restore);
+    if (lr.done && !lr.log.empty()) ImGui::TextWrapped("Last restore: %s", lr.log.back().c_str());
     ImGui::TextDisabled("frame %d", ImGui::GetFrameCount());   // a moving number: the screen is live
 }
 
@@ -232,9 +251,13 @@ void Menu::patch_page() {
     ImGui::EndDisabled();
     auto lp = jobs_.last(JobKind::Patch);
     if (lp.done && !lp.log.empty()) ImGui::TextWrapped("Last patch: %s", lp.failed ? lp.message.c_str() : lp.log.back().c_str());
+    ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
     if (ImGui::BeginPopupModal("Replace the original?", nullptr, ImGuiWindowFlags_AlwaysAutoResize)) {
-        ImGui::TextWrapped("The original image will be renamed to .bak files and the translated one put in its place. "
-                           "Delete the .bak files yourself once the game works.");
+        ImGui::PushTextWrapPos(ImGui::GetFontSize() * 32);
+        ImGui::TextUnformatted("The original image will be renamed to .bak files and the translated one put in its place. "
+                               "Keep the .bak files to undo it later with Restore... on the Discs page, or delete them "
+                               "once the game works.");
+        ImGui::PopTextWrapPos();
         if (ImGui::Button("Replace")) { jobs_.start_patch(req); ImGui::CloseCurrentPopup(); }
         ImGui::SameLine();
         if (ImGui::Button("Cancel")) ImGui::CloseCurrentPopup();

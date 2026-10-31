@@ -278,6 +278,64 @@ int main(int argc, char** argv) {
         h.wait(jobs);
         auto r = jobs.scan_result();
         CHECK(r.slot[4] >= 0 && r.all[size_t(r.slot[4])].cls.state == sf3::disc::State::Translated);
+        std::string cue = r.all[size_t(r.slot[4])].path;
+
+        // Restore original: refused while a backup is missing.
+        fs::path t1;
+        for (auto& e : fs::directory_iterator(scratch / "inplace"))
+            if (e.path().filename().string().find("(Track 1)") != std::string::npos) t1 = e.path();
+        fs::rename(t1, t1.string() + ".away");
+        CHECK(!restore_precheck(cue).empty());
+        bool threw = false;
+        try { restore_original(cue, [](const std::string&) {}, [](double) {}); }
+        catch (const std::exception& e) { threw = true; printf("missing backup: %s\n", e.what()); }
+        CHECK(threw);
+        fs::rename(t1.string() + ".away", t1);
+        CHECK(restore_precheck(cue).empty());
+
+        // Through the menu: button, confirmation, hash check, originals back.
+        m.open(Page::Launcher);
+        h.frame();
+        CHECK(h.click("Restore..."));
+        CHECK(!jobs.busy());       // nothing until confirmed
+        CHECK(h.click("Restore"));
+        h.wait(jobs);
+        auto rs = jobs.last(JobKind::Restore);
+        for (auto& l : rs.log) printf("  %s\n", l.c_str());
+        CHECK(!rs.failed);
+        baks = 0; cues = 0; int bins = 0;
+        for (auto& e : fs::directory_iterator(scratch / "inplace")) {
+            baks += e.path().extension() == ".bak";
+            cues += e.path().extension() == ".cue";
+            bins += e.path().extension() == ".bin";
+        }
+        printf("restored: %d .bak, %d cue, %d bin\n", baks, cues, bins);
+        CHECK(baks == 0 && cues == 1 && bins == 2);
+        for (auto& e : fs::directory_iterator(discs))
+            if (fs::exists(scratch / "inplace" / e.path().filename()))
+                CHECK(same_file(scratch / "inplace" / e.path().filename(), e.path()));
+        h.wait(jobs);
+        r = jobs.scan_result();
+        CHECK(r.slot[4] >= 0 && r.all[size_t(r.slot[4])].cls.state == sf3::disc::State::Original);
+    }
+    {
+        // Backups that do not match the recorded hashes: refused, nothing moved.
+        fs::path d = scratch / "badbak";
+        fs::remove_all(d);
+        fs::create_directories(d);
+        auto put = [&](const char* n, const char* text) { FILE* f = fopen((d / n).string().c_str(), "wb"); fputs(text, f); fclose(f); };
+        put("x.cue", "FILE \"x.bin\" BINARY\n");
+        put("x.bin", "translated");
+        put("x.cue.bak", "FILE \"x (Track 1).bin\" BINARY\nFILE \"x (Track 2).bin\" BINARY\n");
+        put("x (Track 1).bin.bak", "not the original");
+        put("x (Track 2).bin.bak", "audio");
+        std::string cue = (d / "x.cue").string();
+        CHECK(restore_precheck(cue).empty());
+        bool threw = false;
+        try { restore_original(cue, [](const std::string&) {}, [](double) {}); }
+        catch (const std::exception& e) { threw = std::string(e.what()).find("does not match") != std::string::npos; printf("mismatch: %s\n", e.what()); }
+        CHECK(threw);
+        CHECK(fs::exists(d / "x.cue") && fs::exists(d / "x.bin") && fs::exists(d / "x.cue.bak") && fs::exists(d / "x (Track 1).bin.bak"));
     }
     ImGui_ImplNull_Shutdown();
     ImGui::DestroyContext();
