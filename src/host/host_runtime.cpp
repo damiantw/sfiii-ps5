@@ -182,6 +182,7 @@ bool host_open() { return g_host != nullptr; }
 
 #if defined(SF3_PS5_CONSOLE)
 extern "C" int sceSystemServiceGetStatus(void* status);   // libSceSystemService
+extern "C" int sceSystemServiceHideSplashScreen();   // libSceSystemService
 extern "C" volatile int sf3_perf_wait;                                    // fault_klog.c (profiler)
 extern "C" void sf3_perf_frame(unsigned long work_ns, unsigned long frame_ns);
 extern "C" void sf3_perf_present(unsigned long ns);
@@ -390,6 +391,8 @@ int main(int argc, char** argv) {
 #if defined(SF3_PS5_CONSOLE)
         if (!display.open(scene, why, settings.low_latency)) { std::fprintf(stderr, "display: %s\n", why.c_str()); return 1; }
         screen = std::make_unique<host::DisplayScreen>(display);
+        // With pic0/pic1.dds registered the shell keeps its launch splash up until the title hides it.
+        { int r = sceSystemServiceHideSplashScreen(); if (r) std::fprintf(stderr, "splash: hide 0x%08x\n", r); }
 #else
         auto w = std::make_unique<host::WindowScreen>(scene, 1280, 720);
         if (!w->open(why)) { std::fprintf(stderr, "window: %s\n", why.c_str()); return 1; }
