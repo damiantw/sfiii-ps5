@@ -18,6 +18,8 @@
 #define SF3_PS5_DATA_DIR "/data/sfiii"
 #endif
 
+const Frame* host_shown_frame(uint64_t& vblank);   // host_runtime.cpp
+
 namespace {
 bool g_started = false;
 
@@ -27,6 +29,15 @@ void hook_st8(uint32_t a, uint8_t v) { st8(a, v); }
 bool hook_press(const std::string& s, std::string& e) { return smpc_press(s, e); }
 bool hook_frame(uint32_t& w, uint32_t& h, std::string& rgb) {
     static Frame f;
+    uint64_t at = 0;
+    const Frame* shown = host_shown_frame(at);
+    if (shown && shown->w > 0 && !shown->px.empty() && at + 1 >= sat_vblanks()) {   // what the TV shows now
+        w = uint32_t(shown->w), h = uint32_t(shown->h);
+        rgb.resize(shown->px.size() * 3);
+        for (size_t i = 0; i < shown->px.size(); ++i)
+            rgb[3 * i] = char(shown->px[i] >> 16), rgb[3 * i + 1] = char(shown->px[i] >> 8), rgb[3 * i + 2] = char(shown->px[i]);
+        return true;
+    }
     vdp2_compose(f);
     static Frame wide;   // 16:9: the picture the host shows, side columns included
     static sf3ps5::WideSprites sprites;

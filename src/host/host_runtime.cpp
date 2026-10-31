@@ -193,6 +193,11 @@ namespace {
 using PerfClock = std::chrono::steady_clock;
 PerfClock::time_point g_perf_last_pace, g_perf_work_from;   // the frame's start; when the machine resumed
 }
+// The last picture sent to the screen (after the runtime's picture latch and 16:9), for the debug
+// server's frame command: a fresh compose can show a half-written movie field the TV never shows.
+static const Frame* g_shown;
+static uint64_t g_shown_vblank;
+const Frame* host_shown_frame(uint64_t& vblank) { vblank = g_shown_vblank; return g_shown; }
 void host_present(const Frame& f) {
     Call c("present");
     // 16:9 (menu): the expanded field, as the desktop app's GPU path builds it. vdp1_gpu_available
@@ -225,6 +230,7 @@ void host_present(const Frame& f) {
 #endif
     }
     const Frame& shown = expanded ? wide_frame : f;
+    g_shown = &shown, g_shown_vblank = sat_vblanks();
     sf3_perf_wait = 1;   // the swapchain present blocks on the display
     auto p0 = PerfClock::now();
     g_host->present(shown.px.data(), shown.w, shown.h, shown.origin_x, shown.native_w);
