@@ -4,8 +4,7 @@
 // 10 words per dot (picture + composition record), 40 words per VDP1 quad, 4x4-dot tile bins and the
 // quad indices. Textures carry end codes resolved once per texture and direction. The PS5 host
 // uploads the result to VkScene and draws the target at `scale` x the field size (2x internal 3D).
-// Textures are cached across fields by HdTexture pointer: the runtime keeps a texture alive while
-// its pixels are unchanged.
+// Textures are cached across fields (see texture()), so an unchanged field packs to the same buffers.
 #pragma once
 #include <algorithm>
 #include <cmath>
@@ -32,7 +31,7 @@ public:
         data.assign(index_at, 0);
         bins_.resize(columns * rows);
         for (auto& b : bins_) b.clear();
-        if (++fields_ % 1800 == 0 || tex.size() > (8u << 20)) tex.assign(1, 0), cache_.clear();   // drop stale textures now and then
+        if (++fields_ % 3600 == 0 || tex.size() > (2u << 20)) tex.assign(1, 0), cache_.clear();   // drop stale textures now and then
         if (tex.empty()) tex.assign(1, 0);
         data[0] = f.w, data[1] = f.h, data[2] = scale, data[3] = uint32_t(count), data[4] = 12, data[5] = quad_at;
         data[6] = bin_at, data[7] = index_at, data[8] = columns;
@@ -93,12 +92,14 @@ public:
     }
 
 private:
-    struct Entry { std::shared_ptr<const void> owner; uint32_t at; };
+    // The runtime makes a new HdTexture whenever VDP1 memory changes, often every field, so the
+    // cache keys on its fingerprint (w, h, decoded colours) and checks the raw words on a hit.
+    struct Entry { std::vector<uint16_t> raw; uint32_t at; };
     template <class Tex>
     uint32_t texture(const std::shared_ptr<Tex>& t, bool hflip, unsigned mode) {
-        const uint64_t key = uint64_t(uintptr_t(t.get())) << 2 | mode;
+        const uint64_t key = t->fingerprint * 4 + mode;
         auto it = cache_.find(key);
-        if (it != cache_.end() && it->second.owner.get() == t.get()) return it->second.at;
+        if (it != cache_.end() && it->second.raw == t->raw) return it->second.at;
         const uint32_t base = uint32_t(tex.size());
         tex.insert(tex.end(), t->raw.begin(), t->raw.end());
         if (!(mode & 2))
@@ -111,7 +112,7 @@ private:
                     if (value == 0x7FFF || ends >= 2) value = 0x2000000;
                 }
             }
-        cache_[key] = Entry{std::static_pointer_cast<const void>(t), base};
+        cache_[key] = Entry{t->raw, base};
         return base;
     }
     std::vector<std::vector<uint32_t>> bins_;
