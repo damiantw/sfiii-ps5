@@ -118,8 +118,8 @@ backdrop sky is only 4:3 wide, and on some battle maps the game itself culls ter
 
 ![Settings](docs/images/launcher-settings.png)
 
-Speed, hold-to-fast-forward, 4:3/16:9, **3D resolution** (1x, the default, or 2x: the VDP1 polygons and
-sprites are drawn at twice the resolution on the GPU by sfiii-native's geometry shader, as in the
+Speed, hold-to-fast-forward, 4:3/16:9, **3D resolution** (1x, the default, up to 4x: the VDP1 polygons and
+sprites are drawn at 2-4x the resolution on the GPU by sfiii-native's geometry shader, as in the
 desktop app; 2D layers stay native; a few dots of the background can show along some polygon edges), sharp pixels (nearest-neighbour scaling), **low latency**
 (two swapchain images instead of three, about one frame less delay; restart to apply) and the menu size.
 They are saved in `/data/shiningforceiii/settings.txt`.

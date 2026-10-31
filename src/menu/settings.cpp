@@ -20,7 +20,7 @@ bool Settings::load(const std::string& path) {
         if (k == "speed") { int s = atoi(v.c_str()); if (s >= 1 && s <= 3) speed = s; }
         else if (k == "fast_forward_hold") fast_forward_hold = b();
         else if (k == "aspect") aspect = v == "16:9" ? Aspect::Ratio16x9 : Aspect::Ratio4x3;
-        else if (k == "render_scale") { int r = atoi(v.c_str()); if (r == 1 || r == 2) render_scale = r; }
+        else if (k == "render_scale") { int r = atoi(v.c_str()); if (r >= 1 && r <= kMaxRenderScale) render_scale = r; }
         else if (k == "ui_scale") { float s = float(atof(v.c_str())); if (s >= 1.0f && s <= 3.0f) ui_scale = s; }
         else if (k == "sharp_pixels") sharp_pixels = b();
         else if (k == "low_latency") low_latency = b();

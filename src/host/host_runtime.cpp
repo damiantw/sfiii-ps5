@@ -213,8 +213,11 @@ void host_present(const Frame& f) {
     // (VDP1 quads at 2x, VDP2 and the composition records per dot), as the desktop app draws it.
     const int scale = g_host->render_scale();
     const bool gpu = wide || scale > 1;
-    if (vdp1_widescreen() != wide || vdp1_render_scale() != scale || vdp1_gpu_active() != gpu) {
-        vdp1_widescreen(wide), vdp1_gpu_available(gpu), vdp1_hd_collect(gpu), vdp1_render_scale(scale);
+    // the runtime only needs to know the field goes to the GPU (it takes 1/2/4/5 and keeps the guest
+    // framebuffer native); the pass itself is drawn at `scale` below
+    const int rt_scale = scale > 1 ? 2 : 1;
+    if (vdp1_widescreen() != wide || vdp1_render_scale() != rt_scale || vdp1_gpu_active() != gpu) {
+        vdp1_widescreen(wide), vdp1_gpu_available(gpu), vdp1_hd_collect(gpu), vdp1_render_scale(rt_scale);
     }
     bool expanded = false;
     if (wide && f.w > 0) {
@@ -247,14 +250,21 @@ void host_present(const Frame& f) {
         pack.pack(shown, scale);
         auto g1 = PerfClock::now();
         drawn = g_host->present_scene(pack.data, pack.tex, shown.w, shown.h, scale, shown.origin_x, shown.native_w);
+        auto g2 = PerfClock::now();
+        (void)g2;
         if (!drawn) std::fprintf(stderr, "2x: GPU pass failed (%s); 1x picture\n", g_host->error().c_str());
 #if SF3_PS5_DEVTOOLS
-        static double t_pack; static int n_2x;
+        static double t_pack, t_gpu, w_gpu; static int n_2x;
         t_pack += std::chrono::duration<double, std::milli>(g1 - g0).count();
+        const double gpu_ms = std::chrono::duration<double, std::milli>(g2 - g1).count();
+        t_gpu += gpu_ms, w_gpu = gpu_ms > w_gpu ? gpu_ms : w_gpu;
         if (++n_2x == 600) {
-            std::fprintf(stderr, "2x: pack %.2f ms avg, %zu quads, scene %zu KiB, textures %zu KiB\n", t_pack / 600,
-                         shown.hd ? shown.hd->quads.size() : size_t(0), pack.data.size() / 256, pack.tex.size() / 256);
-            t_pack = 0, n_2x = 0;
+            // pass = upload + draw + fence wait (GPU time of the pass); targets = 2 images + readback
+            std::fprintf(stderr, "2x: %dx %dx%d pack %.2f ms avg, pass %.2f avg %.2f worst ms, %zu quads, scene %zu KiB, textures %zu KiB, targets %zu KiB\n",
+                         scale, shown.w * scale, shown.h * scale, t_pack / 600, t_gpu / 600, w_gpu,
+                         shown.hd ? shown.hd->quads.size() : size_t(0), pack.data.size() / 256, pack.tex.size() / 256,
+                         size_t(shown.w * scale) * size_t(shown.h * scale) * 12 / 1024);
+            t_pack = t_gpu = w_gpu = 0, n_2x = 0;
         }
         // /data/sfiii/scene.req: the next GPU pass is written to /data/sfiii/scene.ppm (full 2x size)
         static int n_req;
