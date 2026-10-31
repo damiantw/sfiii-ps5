@@ -259,8 +259,10 @@ void Menu::settings_page() {
     if (ImGui::Checkbox("Hold R2 to fast-forward", &s_.fast_forward_hold)) changed();
     int a = s_.aspect == Aspect::Ratio16x9;
     if (ImGui::Combo("Display", &a, "4:3\0" "16:9 (where the game draws it)\0")) { s_.aspect = a ? Aspect::Ratio16x9 : Aspect::Ratio4x3; changed(); }
-    int rs = s_.render_scale >= 1 && s_.render_scale <= 4 ? s_.render_scale - 1 : 0;
-    if (ImGui::Combo("3D resolution", &rs, "1x (original)\0" "2x\0" "3x\0" "4x\0")) { s_.render_scale = rs + 1; changed(); }
+    static const int kScales[] = {1, 2, 3, 4, 6};
+    int rs = 0;
+    for (int i = 0; i < 5; ++i) if (kScales[i] == s_.render_scale) rs = i;
+    if (ImGui::Combo("3D resolution", &rs, "1x (original)\0" "2x\0" "3x\0" "4x\0" "6x\0")) { s_.render_scale = kScales[rs]; changed(); }
     if (ImGui::Checkbox("Sharp pixels", &s_.sharp_pixels)) changed();
     if (ImGui::Checkbox("Low latency (restart to apply)", &s_.low_latency)) changed();
     if (ImGui::IsItemHovered()) ImGui::SetTooltip("One frame less input lag; may stutter if the system flips late.");
