@@ -258,7 +258,7 @@ void host_present(const Frame& f) {
         }
         // /data/sfiii/scene.req: the next GPU pass is written to /data/sfiii/scene.ppm (full 2x size)
         static int n_req;
-        if (++n_req % 30 == 0 && std::remove("/data/sfiii/scene.req") == 0) {
+        if (++n_req && std::remove("/data/sfiii/scene.req") == 0) {
             std::vector<uint8_t> rgba; int w = 0, h = 0;
             if (drawn && g_host->read_scene(rgba, w, h))
                 if (FILE* o = std::fopen("/data/sfiii/scene.ppm", "wb")) {
